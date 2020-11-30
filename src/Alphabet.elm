@@ -15,5 +15,8 @@ intToAlphabet : Int -> String
 intToAlphabet n = 
   let m = modBy alphabetLength n
       d = n // alphabetLength
-      l = Maybe.withDefault "" <| Maybe.map String.fromChar <| Array.get m alphabetArray
+      l =  alphabetArray
+        |> Array.get m
+        |> Maybe.map String.fromChar
+        |> Maybe.withDefault ""
   in l ++ if d == 0 then "" else intToAlphabet d

@@ -5,10 +5,10 @@ import Array
 import Browser
 import Chess exposing (
     Board, Castling(..), Game, Move(..), Piece(..), PieceType(..), Player(..), Position(..)
-  , initBoard, castlingEnabled, other, play
+  , initBoard, castlingEnabled, other, play, tileInCheck
   )
 import Component exposing (blank)
-import Composition exposing (standardComposition)
+import Composition exposing (standardComposition, castlingComposition)
 import Debug
 import Html.Attributes exposing (width, height, style)
 import Html exposing (Html, button, node, div, ul, li, span, text, input)
@@ -33,14 +33,16 @@ init =
   { board = List.foldl
     (\(Position (x, y) p) g -> Matrix.set (x, y) (Just p) g)
     initBoard
-    standardComposition 
+    -- standardComposition
+    castlingComposition
   , input = ""
   , moves =
     [ Castling KingSide
-    , PieceMove (2, 3) (4, 3)
-    , PieceMove (1, 4) (2, 4)
-    , PieceMove (2, 2) (6, 2)
-    , PieceMove (2, 3) (1, 3)
+    , Castling QueenSide
+    -- , PieceMove (2, 3) (4, 3)
+    -- , PieceMove (1, 4) (2, 4)
+    -- , PieceMove (2, 2) (6, 2)
+    -- , PieceMove (2, 3) (1, 3)
     ]
   , turn = White
   }
@@ -114,9 +116,11 @@ view model =
           , whiteCastlingAvailable = castlingEnabled
           , turn = White
           }) model.moves
-        |> Maybe.map .board
-        |> Maybe.withDefault model.board
-        |> Matrix.toList
+        |> Maybe.map (Matrix.toList << .board)
+        -- |> Maybe.withDefault (\e -> div [] [ text "ERROR" ])
+        -- TODO Error
+        |> Maybe.withDefault (Matrix.toList model.board)
+        -- |> Maybe.withDefault []
         |> List.indexedMap
             (\i xs -> div
               [ style "display" "flex"
@@ -131,7 +135,24 @@ view model =
                   , style "width" checkSize
                   , style "height" checkSize
                   ]
-                  [ span
+                  [ div
+                      [ style "backgroundColor" <|
+                        if List.isEmpty (tileInCheck White model.board (j, i))
+                        then if List.isEmpty (tileInCheck Black model.board (j, i))
+                          then "transparent"
+                          else "blue"
+                        else if List.isEmpty (tileInCheck Black model.board (j, i))
+                          then "red"
+                          else "magenta"
+                      , style "opacity" ".2"
+                      , style "position" "absolute"
+                      , style "bottom" "0"
+                      , style "left" "0"
+                      , style "right" "0"
+                      , style "top" "0"
+                      ]
+                      []
+                  , span
                     [ style "position" "absolute"
                     , style "top" "3px"
                     , style "left" "3px"
