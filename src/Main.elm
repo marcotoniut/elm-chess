@@ -5,7 +5,7 @@ import Array
 import Browser
 import Chess exposing (
     Board, Castling(..), Game, Move(..), Piece(..), PieceType(..), Player(..), Tile(..)
-  , initBoard, castlingEnabled, other, play, tileInCheck
+  , castlingEnabled, initBoard, other, play, tileInCheck
   )
 import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
@@ -16,11 +16,6 @@ import Html.Events exposing (onInput, onClick)
 import Matrix
 import Result.Extra as R
 import Chess exposing (MoveError)
-
--- type CardinalDirection = N | E | S | W
--- type IntercardinalDirection = NE | SE | SW | NW
-
--- type alias Direction = CardinalDirection | IntercardinalDirection
 
 -- MODEL
 type alias Model =
@@ -46,8 +41,8 @@ init =
   }
 
 -- MAIN
-main =
-  Browser.sandbox { init = init, update = update, view = view }
+main : Program () Model Msg
+main = Browser.sandbox { init = init, update = update, view = view }
 
 -- UPDATE
 type Msg
@@ -62,19 +57,28 @@ update msg model = case msg of
               , moves = m :: model.moves
       }
 
-darkSpaceColor = "#769656" -- (118,150,86)
-lightSpaceColor = "#eeeed2" -- (238,238,210)
-borderColor = "#baca44" -- (186,202,68)
+darkSpaceColor   : String
+darkSpaceColor   = "#769656" -- (118,150,86)
+lightSpaceColor  : String
+lightSpaceColor  = "#eeeed2" -- (238,238,210)
+borderColor      : String
+borderColor      = "#baca44" -- (186,202,68)
+whitePlayerColor : String
 whitePlayerColor = "#ffffff" -- (255,255,255)
+blackPlayerColor : String
 blackPlayerColor = "#000000" -- (0,0,0)
-checkSize = "70px"
+checkSize        : String
+checkSize        = "70px"
 
 -- VIEW
 view : Model -> Html Msg
 view model =
   div []
     [ button [ onClick (MovePiece (Castling KingSide)) ] [ text "Castle KingSide" ]
-    , button [ onClick (MovePiece (Castling QueenSide)) ] [ text "Castle QueenSide " ]
+    , button [ onClick (MovePiece (Castling QueenSide)) ] [ text "Castle QueenSide" ]
+    , button [ onClick (MovePiece (PieceMove (3, 1) (3, 3))) ] [ text "Move Pawn (3, 1) (3, 3)" ]
+    , button [ onClick (MovePiece (PieceMove (6, 1) (6, 3))) ] [ text "Move Pawn (6, 1) (6, 3)" ]
+    , button [ onClick (MovePiece (PieceMove (6, 7) (7, 5))) ] [ text "Move Knight (6, 7) (7, 5)" ]
     , input [ onInput ChangeInput ] []
     , div
       []
@@ -86,7 +90,7 @@ view model =
                 li
                 [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
                 [ text
-                  <| "[" ++ Debug.toString x0 ++ " " ++ Debug.toString y0
+                  <| "["   ++ Debug.toString x0 ++ " " ++ Debug.toString y0
                   ++ " - " ++ Debug.toString xf ++ " " ++ Debug.toString yf
                   ++ "]"
                 ]
@@ -98,7 +102,7 @@ view model =
                 li
                 [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
                 [ text
-                  <| "[" ++ Debug.toString y0 ++ " " ++ Debug.toString yf
+                  <| "["    ++ Debug.toString y0 ++ " " ++ Debug.toString yf
                   ++ " -> " ++ Debug.toString p
                   ++ "]"
                 ]

@@ -3,6 +3,7 @@ module Chess exposing (..)
 import Matrix
 import Maybe.Extra as M
 import List.Extra as L
+import Result.Extra as R
 
 type Player = Black | White
 other : Player -> Player
@@ -236,20 +237,50 @@ tileInCheck p b v = Matrix.get v b |> M.join |> M.filter (\x -> p /= piecePlayer
 
 type MoveError
   = CastlingUnavailable
+  | LeavesPlayerInCheck Player
+  | MissingPlayerKing Player
+  | TrayectoryBlocked
+  | InvalidTile (Int, Int)
+  | NoPlayerPieceInTile
+  | TileObstructed
   | MoveNotImplemented
   | ScrambledPieces
 
 tryMove : Move -> Game -> Result MoveError Game
 tryMove m s = case m of
-  PieceMove (x0, y0) (xf, yf) -> Result.Err MoveNotImplemented
-    -- Maybe.map2
-    --   (\m0 mf -> case m0 of
-    --     Nothing -> Nothing
-    --     Just p  -> Just
-    --       { s | board = s.board
-    --       }
-    --   )
-    --   (Matrix.get (x0, y0) s.board) (Matrix.get (xf, yf) s.board)
+  PieceMove v0 vf ->
+    (Result.fromMaybe (InvalidTile v0) <| Matrix.get v0 s.board)
+    |> Result.andThen
+      (\m0 -> (Result.fromMaybe (InvalidTile vf) <| Matrix.get vf s.board)
+      |> Result.andThen
+        (\mf -> case m0 of
+          Nothing -> Result.Err NoPlayerPieceInTile
+          Just p0  ->
+            let pl = piecePlayer p0 in
+            case mf of
+              Nothing -> s.board
+                |> Matrix.set v0 Nothing
+                |> Matrix.set vf (Just p0)
+                |> (\b -> (b, pl))
+                |> Result.Ok
+              Just pf -> if piecePlayer p0 == piecePlayer pf
+                then Result.Err TileObstructed
+                else
+                  s.board
+                  |> Matrix.set v0 Nothing
+                  |> Matrix.set vf (Just p0)
+                  |> (\b -> (b, pl))
+                  |> Result.Ok
+        )
+      )
+    |> Result.andThen
+      (\(b, pl) -> case findKing pl b of
+        Nothing -> Result.Err (MissingPlayerKing pl)
+        Just vk -> if List.isEmpty (tileInCheck pl b vk)
+          then Result.Ok b
+          else Result.Err (LeavesPlayerInCheck pl)
+      )
+    |> Result.map (\b -> { s | board = b })
   Castling c ->
     let p = s.turn
         rank = castlingRank p
@@ -307,7 +338,7 @@ move v0 vf b = Matrix.get v0 b |> Maybe.map (\p -> Matrix.set v0 Nothing b |> Ma
 
 -- accumulate : Traversable t => Applicative f => ...
 play : Game -> List Move -> Result MoveError Game
-play g = List.foldr (\m -> Result.andThen (tryMove m << advanceTurn)) (Result.Ok g)
+play g = List.foldr (\m -> Result.andThen (Result.map advanceTurn << tryMove m)) (Result.Ok g)
 
 
 toAN : Board -> Player -> Move -> Result String String

@@ -42,7 +42,10 @@ standardComposition =
 castlingComposition : List Tile
 castlingComposition =
   [ Tile (0, 7) (Piece Black Rook)
+  , Tile (0, 3) (Piece Black Bishop)
   , Tile (4, 7) (Piece Black King)
+  , Tile (1, 3) (Piece Black Bishop)
+  , Tile (6, 7) (Piece Black Knight)
   , Tile (7, 7) (Piece Black Rook)
   -- , Position (0, 6) (Piece Black Pawn)
   , Tile (1, 6) (Piece Black Pawn)
