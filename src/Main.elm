@@ -16,6 +16,7 @@ import Html.Events exposing (onInput, onClick)
 import Matrix
 import Result.Extra as R
 import Chess exposing (MoveError)
+import Chess exposing (PawnPromotion(..))
 
 -- MODEL
 type alias Model =
@@ -73,44 +74,8 @@ checkSize        = "70px"
 -- VIEW
 view : Model -> Html Msg
 view model =
-  div []
-    [ button [ onClick (MovePiece (Castling KingSide)) ] [ text "Castle KingSide" ]
-    , button [ onClick (MovePiece (Castling QueenSide)) ] [ text "Castle QueenSide" ]
-    , button [ onClick (MovePiece (PieceMove (3, 1) (3, 3))) ] [ text "Move Pawn (3, 1) (3, 3)" ]
-    , button [ onClick (MovePiece (PieceMove (6, 1) (6, 3))) ] [ text "Move Pawn (6, 1) (6, 3)" ]
-    , button [ onClick (MovePiece (PieceMove (6, 7) (7, 5))) ] [ text "Move Knight (6, 7) (7, 5)" ]
-    , input [ onInput ChangeInput ] []
-    , div
-      []
-      [ model.moves
-        |> List.indexedMap
-          (\i m ->
-            case m of
-              PieceMove (x0, y0) (xf, yf) ->
-                li
-                [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                [ text
-                  <| "["   ++ Debug.toString x0 ++ " " ++ Debug.toString y0
-                  ++ " - " ++ Debug.toString xf ++ " " ++ Debug.toString yf
-                  ++ "]"
-                ]
-              Castling c ->
-                li
-                [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                [ text <| Debug.toString c ]
-              PawnPromotion y0 yf p ->
-                li
-                [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                [ text
-                  <| "["    ++ Debug.toString y0 ++ " " ++ Debug.toString yf
-                  ++ " -> " ++ Debug.toString p
-                  ++ "]"
-                ]
-          )
-        |> ul []
-      ]
-    , div
-      [ style "display" "flex" ]
+  div [ style "display" "flex" ]
+    [ div []
       -- [ Result.andThen (\g -> play g model.moves) model.gameR
       [ model.gameR
         |> Result.map
@@ -131,13 +96,66 @@ view model =
             ]
           )
         |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
-        -- |> Result.mapError (\e -> case e of
-        --     CastlingUnavailable -> De[]
-        --     CastlingUnavailable -> div [] []
-        --     CastlingUnavailable -> div [] []
-        --   )
         |> R.merge
        ]
+    , div []
+      [
+        div
+        [ style "display" "flex" ]
+        [ button [ onClick (MovePiece (Castling KingSide)) ] [ text "Castle KingSide" ]
+        , button [ onClick (MovePiece (Castling QueenSide)) ] [ text "Castle QueenSide" ]
+        , button [ onClick (MovePiece (PieceMove (3, 1) (3, 3))) ] [ text "Move Pawn (3, 1) (3, 3)" ]
+        , button [ onClick (MovePiece (PieceMove (6, 1) (6, 3))) ] [ text "Move Pawn (6, 1) (6, 3)" ]
+        , button [ onClick (MovePiece (PieceMove (6, 7) (7, 5))) ] [ text "Move Knight (6, 7) (7, 5)" ]
+        , button [ onClick (MovePiece (PawnPromotion White 2 2 QueenPromotion)) ] [ text "Promote White Pawn (Queen) 2 2" ]
+        , button [ onClick (MovePiece (PawnPromotion White 2 3 KnightPromotion)) ] [ text "Promote White Pawn (Knight) 2 3" ]
+        ]
+      , div
+        [ style "margin" "1em"
+        , style "border" "1px solid black"
+        ]
+        [ input
+          [ onInput ChangeInput
+          , style "backgroundColor" "lightyellow"
+          , style "border" "none"
+          , style "border-radius" "0"
+          , style "box-sizing" "border-box"
+          , style "border-bottom" "1px solid black"
+          , style "width" "100%"
+          ] []
+        , model.moves
+          |> List.indexedMap
+            (\i m ->
+              case m of
+                PieceMove (f0, r0) (ff, rf) ->
+                  li
+                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
+                  [ text
+                    <| "["   ++ Debug.toString f0 ++ " " ++ Debug.toString r0
+                    ++ " - " ++ Debug.toString ff ++ " " ++ Debug.toString rf
+                    ++ "]"
+                  ]
+                Castling c ->
+                  li
+                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
+                  [ text <| Debug.toString c ]
+                PawnPromotion _ f0 ff p ->
+                  li
+                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
+                  [ text
+                    <| "["    ++ Debug.toString f0 ++ " " ++ Debug.toString ff
+                    ++ " -> " ++ Debug.toString p
+                    ++ "]"
+                  ]
+            )
+          |> ul
+            [ style "list-style" "none"
+            , style "min-height" "100px"
+            , style "padding" "0"
+            , style "margin" "0"
+            ]
+        ]
+      ]
     ]
 
 pieceToIcon : Piece -> String
