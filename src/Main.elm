@@ -5,12 +5,12 @@ import Array
 import Browser
 import Chess exposing (
     Board, Castling(..), Game, Move(..), Piece(..), PieceType(..), Player(..), Tile(..)
-  , castlingEnabled, initBoard, other, play, tileInCheck
+  , castlingEnabled, initBoard, opponent, play, tileInCheck
   )
 import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
 import Debug
-import Html.Attributes exposing (width, height, style)
+import Html.Attributes exposing (width, height, style, disabled)
 import Html exposing (Html, button, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
 import Matrix
@@ -54,7 +54,7 @@ update : Msg -> Model -> Model
 update msg model = case msg of
     ChangeInput i -> { model | input = i }
     MovePiece m ->
-      { model | gameR = Result.andThen (\g -> play g [ m ]) model.gameR
+      { model | gameR = Result.andThen (play [ m ]) model.gameR
               , moves = m :: model.moves
       }
 
@@ -101,14 +101,18 @@ view model =
     , div []
       [
         div
-        [ style "display" "flex" ]
-        [ button [ onClick (MovePiece (Castling KingSide)) ] [ text "Castle KingSide" ]
-        , button [ onClick (MovePiece (Castling QueenSide)) ] [ text "Castle QueenSide" ]
-        , button [ onClick (MovePiece (PieceMove (3, 1) (3, 3))) ] [ text "Move Pawn (3, 1) (3, 3)" ]
-        , button [ onClick (MovePiece (PieceMove (6, 1) (6, 3))) ] [ text "Move Pawn (6, 1) (6, 3)" ]
-        , button [ onClick (MovePiece (PieceMove (6, 7) (7, 5))) ] [ text "Move Knight (6, 7) (7, 5)" ]
-        , button [ onClick (MovePiece (PawnPromotion White 2 2 QueenPromotion)) ] [ text "Promote White Pawn (Queen) 2 2" ]
-        , button [ onClick (MovePiece (PawnPromotion White 2 3 KnightPromotion)) ] [ text "Promote White Pawn (Knight) 2 3" ]
+        [ style "display" "grid"
+        , style "grid-gap" "1em"
+        , style "grid-template-columns" "repeat(3, 1fr)"
+        , style "margin" "1em"
+        ]
+        [ moveButton (Castling KingSide) model.gameR
+        , moveButton (Castling QueenSide) model.gameR
+        , moveButton (PieceMove (3, 1) (3, 3)) model.gameR
+        , moveButton (PieceMove (6, 1) (6, 3)) model.gameR
+        , moveButton (PieceMove (6, 7) (7, 5)) model.gameR
+        , moveButton (PawnPromotion 2 2 QueenPromotion) model.gameR
+        , moveButton (PawnPromotion 2 3 KnightPromotion) model.gameR
         ]
       , div
         [ style "margin" "1em"
@@ -125,28 +129,11 @@ view model =
           ] []
         , model.moves
           |> List.indexedMap
-            (\i m ->
-              case m of
-                PieceMove (f0, r0) (ff, rf) ->
-                  li
-                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                  [ text
-                    <| "["   ++ Debug.toString f0 ++ " " ++ Debug.toString r0
-                    ++ " - " ++ Debug.toString ff ++ " " ++ Debug.toString rf
-                    ++ "]"
-                  ]
-                Castling c ->
-                  li
-                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                  [ text <| Debug.toString c ]
-                PawnPromotion _ f0 ff p ->
-                  li
-                  [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                  [ text
-                    <| "["    ++ Debug.toString f0 ++ " " ++ Debug.toString ff
-                    ++ " -> " ++ Debug.toString p
-                    ++ "]"
-                  ]
+            -- (\i m -> toAN b pl m
+            (\i ->
+              moveText
+              >> List.singleton
+              >> li [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
             )
           |> ul
             [ style "list-style" "none"
@@ -157,6 +144,16 @@ view model =
         ]
       ]
     ]
+
+moveButton : Move -> Result MoveError Game -> Html Msg
+moveButton m rg = button
+  [ onClick (MovePiece  m)
+  , disabled <| R.isErr <| Result.andThen (play [ m ]) <| rg
+  ]
+  [ moveText m ]
+
+moveText : Move -> Html a
+moveText = Debug.toString >> text 
 
 pieceToIcon : Piece -> String
 pieceToIcon p =  case p of
