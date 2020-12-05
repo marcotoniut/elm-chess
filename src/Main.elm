@@ -5,7 +5,8 @@ import Array
 import Browser
 import Chess exposing (
     Board, Castling(..), Game, Move(..), Piece(..), PieceType(..), Player(..), Tile(..)
-  , castlingEnabled, initBoard, opponent, play, tileInCheck
+  , MoveError, PawnPromotion(..)
+  , castlingEnabled, initBoard, opponent, play, inCheck, checkMatrix
   )
 import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
@@ -13,16 +14,22 @@ import Debug
 import Html.Attributes exposing (width, height, style, disabled)
 import Html exposing (Html, button, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
+import Icon exposing (pieceToIcon)
 import Matrix
+import Maybe.Extra as M
 import Result.Extra as R
-import Chess exposing (MoveError)
-import Chess exposing (PawnPromotion(..))
+import Theme exposing (
+    darkSpaceColor, darkSpaceColor
+  , lightSpaceColor, borderColor, whitePlayerColor
+  , blackPlayerColor, checkSize
+  )
 
 -- MODEL
 type alias Model =
   { input : String
   , moves : List Move
   , gameR : Result MoveError Game
+  , maybeSelected : Maybe (Int, Int)
   }
 
 init : Model
@@ -39,6 +46,7 @@ init =
       }
   , input = ""
   , moves = []
+  , maybeSelected = Nothing
   }
 
 -- MAIN
@@ -49,27 +57,17 @@ main = Browser.sandbox { init = init, update = update, view = view }
 type Msg
   = ChangeInput String
   | MovePiece Move
+  | SelectPiece (Int, Int)
 
 update : Msg -> Model -> Model
 update msg model = case msg of
-    ChangeInput i -> { model | input = i }
-    MovePiece m ->
-      { model | gameR = Result.andThen (play [ m ]) model.gameR
-              , moves = m :: model.moves
-      }
+  SelectPiece v -> { model | maybeSelected = Just v }
+  ChangeInput i -> { model | input = i }
+  MovePiece m   ->
+    { model | gameR = Result.andThen (play [ m ]) model.gameR
+            , moves = m :: model.moves
+    }
 
-darkSpaceColor   : String
-darkSpaceColor   = "#769656" -- (118,150,86)
-lightSpaceColor  : String
-lightSpaceColor  = "#eeeed2" -- (238,238,210)
-borderColor      : String
-borderColor      = "#baca44" -- (186,202,68)
-whitePlayerColor : String
-whitePlayerColor = "#ffffff" -- (255,255,255)
-blackPlayerColor : String
-blackPlayerColor = "#000000" -- (0,0,0)
-checkSize        : String
-checkSize        = "70px"
 
 -- VIEW
 view : Model -> Html Msg
@@ -80,15 +78,31 @@ view model =
       [ model.gameR
         |> Result.map
           (\g ->
-          g.board
+          let checkedMatrix = checkMatrix (Maybe.withDefault (-1, -1) model.maybeSelected) g.board
+          in g.board
           |> Matrix.toList
-          >> List.indexedMap
+          |> List.indexedMap
               (\i xs -> div
                 [ style "display" "flex" ]
-                (List.indexedMap (tileView g.board i) xs)
+                (List.indexedMap
+                  (\j ->
+                    let ms = model.maybeSelected
+                        ti =
+                          (case ms of
+                            Nothing     -> TileCleared
+                            Just (f, r) ->
+                              if f == i && r == j
+                              then TileSelected
+                              else if M.isJust (Matrix.get (i, j) checkedMatrix)
+                                then TileChecked
+                                else TileCleared
+                          )
+                    in tileView g.board (i, j) ti
+                  ) xs
+                )
               )
-          >> List.reverse
-          >> div
+          |> List.reverse
+          |> div
             [ style "borderColor" borderColor
             , style "borderStyle" "solid"
             , style "borderWidth" "35px"
@@ -99,8 +113,7 @@ view model =
         |> R.merge
        ]
     , div []
-      [
-        div
+      [ div
         [ style "display" "grid"
         , style "grid-gap" "1em"
         , style "grid-template-columns" "repeat(3, 1fr)"
@@ -147,7 +160,7 @@ view model =
 
 moveButton : Move -> Result MoveError Game -> Html Msg
 moveButton m rg = button
-  [ onClick (MovePiece  m)
+  [ onClick (MovePiece m)
   , disabled <| R.isErr <| Result.andThen (play [ m ]) <| rg
   ]
   [ moveText m ]
@@ -155,47 +168,39 @@ moveButton m rg = button
 moveText : Move -> Html a
 moveText = Debug.toString >> text 
 
-pieceToIcon : Piece -> String
-pieceToIcon p =  case p of
-  Piece White King   -> "♔" -- U+2654	&#9812;	&#x2654;
-  Piece White Queen  -> "♕" -- U+2655 &#9813;	&#x2655;
-  Piece White Rook   -> "♖" -- U+2656	&#9814;	&#x2656;
-  Piece White Bishop -> "♗" -- U+2657	&#9815;	&#x2657;
-  Piece White Knight -> "♘" -- U+2658	&#9816;	&#x2658;
-  Piece White Pawn   -> "♙" -- U+2659	&#9817;	&#x2659;
-  Piece Black King   -> "♚" -- U+265A	&#9818;	&#x265A;
-  Piece Black Queen  -> "♛" -- U+265B	&#9819;	&#x265B;
-  Piece Black Rook   -> "♜" -- U+265C	&#9820;	&#x265C;
-  Piece Black Bishop -> "♝" -- U+265D	&#9821;	&#x265D;
-  Piece Black Knight -> "♞" -- U+265E	&#9822;	&#x265E;
-  Piece Black Pawn   -> "♟︎" -- U+265F &#9823; &#x265F;
+type TileInteraction
+  = TileSelected
+  | TileChecked
+  | TileCleared
 
-tileView : Board -> Int -> Int -> Maybe Piece -> Html a
-tileView b i j mp =
-  let whiteCheck = tileInCheck White b (j, i)
-      blackCheck = tileInCheck Black b (j, i)
+tileView : Board -> (Int, Int) -> TileInteraction -> Maybe Piece -> Html a
+tileView b (i, j) t mp =
+  let whiteCheck = inCheck White b (j, i)
+      blackCheck = inCheck Black b (j, i)
   in div
     [ style "position" "relative"
     , style "backgroundColor"
-      <| if (modBy 2 (i + j) == 0)
-          then darkSpaceColor
-          else lightSpaceColor
+      <| if (modBy 2 (i + j) == 0) then darkSpaceColor else lightSpaceColor
     , style "width" checkSize
     , style "height" checkSize
     ]
     [ div
-        [ style "backgroundColor" <|
-          if List.isEmpty whiteCheck
-          then if List.isEmpty blackCheck then "transparent" else "blue"
-          else if List.isEmpty blackCheck then "red"         else "magenta"
-        , style "opacity" ".2"
-        , style "position" "absolute"
-        , style "bottom" "0"
-        , style "left" "0"
-        , style "right" "0"
-        , style "top" "0"
-        ]
-        []
+      [ style "backgroundColor"
+        <| case t of
+          TileSelected -> "yellow"
+          TileChecked  -> "green"
+          TileCleared  ->
+            if List.isEmpty whiteCheck
+            then if List.isEmpty blackCheck then "transparent" else "blue"
+            else if List.isEmpty blackCheck then "red"         else "magenta"
+      , style "opacity" ".2"
+      , style "position" "absolute"
+      , style "bottom" "0"
+      , style "left" "0"
+      , style "right" "0"
+      , style "top" "0"
+      ]
+      []
     , span
       [ style "position" "absolute"
       , style "top" "3px"
@@ -214,7 +219,7 @@ tileView b i j mp =
           , style "font-size" checkSize
           , style "user-select" "none"
           ]
-          [ text << pieceToIcon <| p ]
+          [ text <| pieceToIcon p ]
         )
       |> Maybe.withDefault blank
     ]
