@@ -27,6 +27,28 @@ promote p = case p of
   BishopPromotion -> Bishop
   KnightPromotion -> Knight
 
+type HorizontalDirection = Left | Right
+
+type PawnMove
+  = PawnAdvance
+  | PawnCapture HorizontalDirection
+
+type QueenMove
+  = QueenStraightMove StraightDirection Int
+  | QueenDiagonalMove DiagonalDirection Int
+
+type KingMove
+  = KingStraightMove StraightDirection
+  | KingDiagonalMove DiagonalDirection
+
+type PieceMove
+  = RookMove   StraightDirection Int
+  | BishopMove DiagonalDirection Int
+  | QueenMove  QueenMove
+  | KingMove   KingMove
+  | KnightMove StraightDirection DiagonalDirection
+  | PawnMove   PawnMove
+
 type StraightDirection = N | E | S | W
 straightDirections : List StraightDirection
 straightDirections = [ N, E, S, W ]
@@ -66,7 +88,8 @@ pawnsRank = player 1 6
 
 type Move
   = PieceMove (Int, Int) (Int, Int)
-  | BishopMove (Int, Int) DiagonalDirection Int
+  -- = PieceMove (Int, Int) PieceMove
+  -- | EnPassant Player Int HorizontalDirection
   | Castling Castling
   | PawnPromotion Int Int PawnPromotion
 
@@ -289,7 +312,6 @@ type MoveError
 -- legalMove
 tryMove : Move -> Game -> Result MoveError Game
 tryMove m s = case m of
-  BishopMove v0 d q -> Result.Err MoveNotImplemented
   PieceMove v0 vf ->
     (Result.fromMaybe (InvalidTile v0) <| Matrix.get v0 s.board)
     |> Result.andThen
@@ -424,9 +446,26 @@ checkStraight pl b v0 d =
         mp
       )
 
+kingLegalMoves : Player -> Game -> (Int, Int) -> List Move
+kingLegalMoves pl g v =
+  let mt = Matrix.get v g.board
+  in
+    straightDirections
+    |> List.map
+      ((\d -> translateStraight d v) >> (PieceMove v))
+    |> List.filter (\m -> tryMove m g |> R.isOk)
+
 -- TODO
-pieceLegalMoves : Board -> (Int, Int) -> Piece -> List Move
-pieceLegalMoves b v (Piece pl p) = []
+-- PieceMove
+pieceLegalMoves : Game -> (Int, Int) -> Piece -> List Move
+pieceLegalMoves g v (Piece pl p) = case p of
+  King -> kingLegalMoves pl g v
+  _    -> []
+--   Queen -> []
+--   Bishop -> []
+--   Queen -> []
+--   Queen -> []
+
 
 playerPieces : Player -> Board -> List ((Int, Int), Piece)
 playerPieces pl
@@ -441,21 +480,24 @@ type PlayerStatus
 
 -- TODO canMoveOut, captureAttacker, canBlock
 -- { board : Board, lastMove : lastMove } Empass
-playerStatus : Player -> Board -> PlayerStatus
-playerStatus pl b =
-  let mk = findKing pl b
+playerStatus : Player -> Game -> PlayerStatus
+playerStatus pl g =
+  let mk = findKing pl g.board
   in case mk of
+    -- TODO Invalid
     Nothing -> Normal
     Just k  ->
-      let kInCheck = inCheck pl b k
+      let kInCheck = inCheck pl g.board k
       in case kInCheck of
         [] -> Check
         h :: xs ->
-          let ps = playerPieces pl b
-              ms = List.concat <| List.map (Tuple2.uncurry <| pieceLegalMoves b) ps
+          let ps = playerPieces pl g.board
+              ms = List.concat <| List.map (Tuple2.uncurry <| pieceLegalMoves g) ps
           in if List.isEmpty ms
           then StaleMate
-          else Normal
+          else
+            let klms = kingLegalMoves pl g k
+            in Normal
         -- xs -> Normal
       -- then Normal
       -- else Normal
