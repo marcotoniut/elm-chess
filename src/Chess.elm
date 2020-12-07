@@ -9,6 +9,7 @@ import List
 import Matrix
 import List
 import Html.Attributes exposing (kind)
+import Direction exposing (..)
 
 type Player = White | Black
 player : a -> a -> Player -> a
@@ -26,8 +27,6 @@ promote p = case p of
   RookPromotion   -> Rook
   BishopPromotion -> Bishop
   KnightPromotion -> Knight
-
-type HorizontalDirection = Left | Right
 
 type PawnMove
   = PawnAdvance
@@ -49,27 +48,6 @@ type PieceMove
   | KnightMove StraightDirection DiagonalDirection
   | PawnMove   PawnMove
 
-type StraightDirection = N | E | S | W
-straightDirections : List StraightDirection
-straightDirections = [ N, E, S, W ]
-translateStraight : StraightDirection -> (Int, Int) -> (Int, Int)
-translateStraight d (f, r) = case d of
-  N -> (f    , r + 1)
-  E -> (f + 1, r    )
-  S -> (f    , r - 1)
-  W -> (f - 1, r    )
-
-
-type DiagonalDirection = NE | SE | SW | NW
-diagonalDirections : List DiagonalDirection
-diagonalDirections = [ NE, SE, SW, NW ]
-translateDiagonal : DiagonalDirection -> (Int, Int) -> (Int, Int)
-translateDiagonal d (f, r) = case d of
-  NE -> (f + 1, r + 1)
-  SE -> (f + 1, r - 1)
-  SW -> (f - 1, r - 1)
-  NW -> (f - 1, r + 1)
-
 type Piece = Piece Player PieceType
 piecePlayer : Piece -> Player
 piecePlayer (Piece p _) = p
@@ -89,8 +67,9 @@ pawnsRank = player 1 6
 type Move
   = PieceMove (Int, Int) (Int, Int)
   -- = PieceMove (Int, Int) PieceMove
-  -- | EnPassant Player Int HorizontalDirection
+  | PawnDoubleStep Int
   | Castling Castling
+  -- | EnPassant Player Int HorizontalDirection
   | PawnPromotion Int Int PawnPromotion
 
 type alias Board = Matrix.Matrix (Maybe Piece)
@@ -311,7 +290,11 @@ type MoveError
 -- TODO Result IlegalMove (Translate (x, y) (x, y))
 -- legalMove
 tryMove : Move -> Game -> Result MoveError Game
-tryMove m s = case m of
+tryMove m s =
+  let pl = s.turn
+  in case m of
+  PawnDoubleStep f -> Result.Err ScrambledPieces
+
   PieceMove v0 vf ->
     (Result.fromMaybe (InvalidTile v0) <| Matrix.get v0 s.board)
     |> Result.andThen
@@ -320,21 +303,20 @@ tryMove m s = case m of
         (\mpf -> case mp0 of
           Nothing -> Result.Err NoPlayerPieceInTile
           Just p0 ->
-            let pl = piecePlayer p0
-            in if M.filter (piecePlayer >> (==) pl) mpf |> M.isJust
+            let pp = piecePlayer p0
+            in if M.filter (piecePlayer >> (==) pp) mpf |> M.isJust
             then Result.Err TileObstructed
             else s.board
               |> Matrix.set v0 Nothing
               |> Matrix.set vf (Just p0)
-              |> Tuple.pair pl
+              |> Tuple.pair pp
               |> Result.Ok
         )
       )
     |> R.filter (LeavesPlayerInCheck s.turn) (Tuple2.uncurry isPlayerInCheck)
     |> Result.map (Tuple.second >> setBoard s)
   Castling c ->
-    let pl = s.turn
-        r = castlingRank pl
+    let r = castlingRank pl
         { available, setAvailable } = case pl of
           White -> { available = s.whiteCastlingAvailable, setAvailable = \x y -> { y | whiteCastlingAvailable = x } }
           Black -> { available = s.blackCastlingAvailable, setAvailable = \x y -> { y | blackCastlingAvailable = x } }
@@ -380,8 +362,7 @@ tryMove m s = case m of
           |> Result.fromMaybe ScrambledPieces
         else Result.Err CastlingUnavailable
   PawnPromotion f0 ff pr ->
-    let pl = s.turn
-        pawnsR = pawnsRank <| opponent s.turn
+    let pawnsR = pawnsRank <| opponent s.turn
         promotionR = promotionRank pl
         v0 = (f0, pawnsR)
         vf = (ff, promotionR)
@@ -473,7 +454,8 @@ playerPieces pl
   >> List.filterMap (\(v, mp) -> M.filter (piecePlayer >> (==) pl) mp |> Maybe.map (Tuple.pair v))
 
 type PlayerStatus
-  = Normal
+  = Invalid
+  | Normal
   | Check
   | CheckMate
   | StaleMate
@@ -484,12 +466,12 @@ playerStatus : Player -> Game -> PlayerStatus
 playerStatus pl g =
   let mk = findKing pl g.board
   in case mk of
-    -- TODO Invalid
-    Nothing -> Normal
+    Nothing -> Invalid
     Just k  ->
       let kInCheck = inCheck pl g.board k
       in case kInCheck of
-        [] -> Check
+        [] -> Normal
+        -- One vs More
         h :: xs ->
           let ps = playerPieces pl g.board
               ms = List.concat <| List.map (Tuple2.uncurry <| pieceLegalMoves g) ps
@@ -497,10 +479,9 @@ playerStatus pl g =
           then StaleMate
           else
             let klms = kingLegalMoves pl g k
-            in Normal
-        -- xs -> Normal
-      -- then Normal
-      -- else Normal
+            in if List.isEmpty klms -- TODO other ways of escaping Checkmate
+            then CheckMate
+            else Check
 
 checkMatrix : (Int, Int) -> Board -> Matrix.Matrix Bool
 checkMatrix v b =

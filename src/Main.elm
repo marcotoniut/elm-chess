@@ -87,17 +87,15 @@ view model =
                 (List.indexedMap
                   (\j ->
                     let ms = model.maybeSelected
-                        ti =
-                          (case ms of
-                            Nothing     -> TileCleared
-                            Just (f, r) ->
-                              if f == i && r == j
-                              then TileSelected
-                              else if M.isJust (Matrix.get (i, j) checkedMatrix)
-                                then TileChecked
-                                else TileCleared
-                          )
-                    in tileView g.board (i, j) ti
+                        v = (i, j)
+                        ti = case ms of
+                          Nothing     -> TileCleared
+                          Just (f, r) ->
+                            if f == i && r == j
+                            then TileSelected
+                            else Matrix.get v checkedMatrix
+                              |> M.unwrap TileCleared (always TileChecked) 
+                    in tileView g.board v ti
                   ) xs
                 )
               )
