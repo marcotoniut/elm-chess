@@ -292,7 +292,7 @@ type MoveError
 tryMove : Move -> Game -> Result MoveError Game
 tryMove m s =
   let pl = s.turn
-  in case m of
+  in Result.map advanceTurn <| case m of
   PawnDoubleStep f -> Result.Err ScrambledPieces
 
   PieceMove v0 vf ->
@@ -401,7 +401,7 @@ tryMove m s =
 
 -- accumulate : Traversable t => Applicative f => ...
 play : List Move -> Game -> Result MoveError Game
-play ms g = List.foldr (\m -> Result.andThen (Result.map advanceTurn << tryMove m)) (Result.Ok g) ms
+play ms g = List.foldr (\m -> Result.andThen (tryMove m)) (Result.Ok g) ms
 
 checkDiagonal : Player -> Board -> (Int, Int) -> DiagonalDirection -> List ((Int, Int), Maybe Piece)
 checkDiagonal pl b v0 d =

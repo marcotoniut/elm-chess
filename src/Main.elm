@@ -3,11 +3,7 @@ module Main exposing (..)
 import Alphabet exposing (intToAlphabet)
 import Array
 import Browser
-import Chess exposing (
-    Board, Castling(..), Game, Move(..), Piece(..), PieceType(..), Player(..), Tile(..)
-  , MoveError, PawnPromotion(..)
-  , castlingEnabled, initBoard, opponent, play, inCheck, checkMatrix
-  )
+import Chess exposing (..)
 import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
 import Debug
@@ -23,6 +19,7 @@ import Theme exposing (
   , lightSpaceColor, borderColor, whitePlayerColor
   , blackPlayerColor, checkSize
   )
+import Component exposing (emptyAttribute)
 
 -- MODEL
 type alias Model =
@@ -57,11 +54,39 @@ main = Browser.sandbox { init = init, update = update, view = view }
 type Msg
   = ChangeInput String
   | MovePiece Move
-  | SelectPiece (Int, Int)
+  | SelectTile (Int, Int)
 
 update : Msg -> Model -> Model
 update msg model = case msg of
-  SelectPiece v -> { model | maybeSelected = Just v }
+  SelectTile  v -> R.unwrap model
+    (\g ->
+      let mp = Matrix.get v g.board |> M.join
+      in case model.maybeSelected of
+        Nothing -> case mp of
+          Nothing -> model
+          Just p  ->
+            if piecePlayer p == g.turn
+            then { model | maybeSelected = Just v }
+            else model
+        Just s  ->
+          if s == v
+          then { model | maybeSelected = Nothing }
+          else case mp of
+            Nothing -> model
+            Just p  ->
+              if piecePlayer p == g.turn
+              then { model | maybeSelected = Just v }
+              else
+                let m  = (PieceMove s v)
+                    ng = tryMove m g
+                in if R.isOk ng
+                then
+                  { model | gameR = ng
+                          , maybeSelected = Nothing 
+                          , moves = m :: model.moves
+                  }
+                else model
+    ) model.gameR
   ChangeInput i -> { model | input = i }
   MovePiece m   ->
     { model | gameR = Result.andThen (play [ m ]) model.gameR
@@ -89,12 +114,13 @@ view model =
                     let ms = model.maybeSelected
                         v = (i, j)
                         ti = case ms of
-                          Nothing     -> TileCleared
-                          Just (f, r) ->
-                            if f == i && r == j
+                          Nothing -> TileCleared
+                          Just s  ->
+                            if (j, i) == s
                             then TileSelected
-                            else Matrix.get v checkedMatrix
-                              |> M.unwrap TileCleared (always TileChecked) 
+                            else TileCleared
+                            -- else Matrix.get v checkedMatrix
+                            --   |> M.unwrap TileCleared (always TileChecked) 
                     in tileView g.board v ti
                   ) xs
                 )
@@ -111,7 +137,11 @@ view model =
         |> R.merge
        ]
     , div []
-      [ div
+      [ R.unwrap
+          blank
+          (\g -> div [] [ text "Turn", text <| Debug.toString g.turn ])
+          model.gameR
+      , div
         [ style "display" "grid"
         , style "grid-gap" "1em"
         , style "grid-template-columns" "repeat(3, 1fr)"
@@ -159,7 +189,7 @@ view model =
 moveButton : Move -> Result MoveError Game -> Html Msg
 moveButton m rg = button
   [ onClick (MovePiece m)
-  , disabled <| R.isErr <| Result.andThen (play [ m ]) <| rg
+  , disabled <| R.isErr <| Result.andThen (play [ m ]) rg
   ]
   [ moveText m ]
 
@@ -171,27 +201,29 @@ type TileInteraction
   | TileChecked
   | TileCleared
 
-tileView : Board -> (Int, Int) -> TileInteraction -> Maybe Piece -> Html a
+tileView : Board -> (Int, Int) -> TileInteraction -> Maybe Piece -> Html Msg
 tileView b (i, j) t mp =
-  let whiteCheck = inCheck White b (j, i)
-      blackCheck = inCheck Black b (j, i)
+  let v = (j, i)
+      wcs = inCheck White b v
+      bcs = inCheck Black b v
   in div
     [ style "position" "relative"
     , style "backgroundColor"
       <| if (modBy 2 (i + j) == 0) then darkSpaceColor else lightSpaceColor
     , style "width" checkSize
     , style "height" checkSize
+    , onClick <| SelectTile v
     ]
     [ div
       [ style "backgroundColor"
         <| case t of
-          TileSelected -> "yellow"
+          TileSelected -> "mediumvioletred"
           TileChecked  -> "green"
           TileCleared  ->
-            if List.isEmpty whiteCheck
-            then if List.isEmpty blackCheck then "transparent" else "blue"
-            else if List.isEmpty blackCheck then "red"         else "magenta"
-      , style "opacity" ".2"
+            if List.isEmpty wcs
+            then if List.isEmpty bcs then "transparent" else "blue"
+            else if List.isEmpty bcs then "red"         else "magenta"
+      , style "opacity" (if t == TileSelected then "1" else ".2")
       , style "position" "absolute"
       , style "bottom" "0"
       , style "left" "0"
