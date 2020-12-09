@@ -3,6 +3,7 @@ module Main exposing (..)
 import Alphabet exposing (intToAlphabet)
 import Array
 import Browser
+import Direction exposing (..)
 import Chess exposing (..)
 import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
@@ -26,7 +27,7 @@ type alias Model =
   { input : String
   , moves : List Move
   , gameR : Result MoveError Game
-  , maybeSelected : Maybe (Int, Int)
+  , maybeSelected : Maybe V2
   }
 
 init : Model
@@ -54,7 +55,7 @@ main = Browser.sandbox { init = init, update = update, view = view }
 type Msg
   = ChangeInput String
   | MovePiece Move
-  | SelectTile (Int, Int)
+  | SelectTile V2
 
 update : Msg -> Model -> Model
 update msg model = case msg of
@@ -77,7 +78,7 @@ update msg model = case msg of
               if piecePlayer p == g.turn
               then { model | maybeSelected = Just v }
               else
-                let m  = (PieceMove s v)
+                let m  = (PieceMove (Temp_TeleportMove s v))
                     ng = tryMove m g
                 in if R.isOk ng
                 then
@@ -149,9 +150,10 @@ view model =
         ]
         [ moveButton (Castling KingSide) model.gameR
         , moveButton (Castling QueenSide) model.gameR
-        , moveButton (PieceMove (3, 1) (3, 3)) model.gameR
-        , moveButton (PieceMove (6, 1) (6, 3)) model.gameR
-        , moveButton (PieceMove (6, 7) (7, 5)) model.gameR
+        , moveButton (PieceMove (PawnPieceMove (PawnAdvance (4, 1)))) model.gameR
+        , moveButton (PieceMove (Temp_TeleportMove (3, 1) (3, 3))) model.gameR
+        , moveButton (PieceMove (Temp_TeleportMove (6, 1) (6, 3))) model.gameR
+        , moveButton (PieceMove (Temp_TeleportMove (6, 7) (7, 5))) model.gameR
         , moveButton (PawnPromotion 2 2 QueenPromotion) model.gameR
         , moveButton (PawnPromotion 2 3 KnightPromotion) model.gameR
         ]
@@ -201,7 +203,7 @@ type TileInteraction
   | TileChecked
   | TileCleared
 
-tileView : Board -> (Int, Int) -> TileInteraction -> Maybe Piece -> Html Msg
+tileView : Board -> V2 -> TileInteraction -> Maybe Piece -> Html Msg
 tileView b (i, j) t mp =
   let v = (j, i)
       wcs = inCheck White b v

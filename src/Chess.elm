@@ -28,25 +28,150 @@ promote p = case p of
   BishopPromotion -> Bishop
   KnightPromotion -> Knight
 
+type KingInCheck = KingInCheck (List Tile)
+
 type PawnMove
-  = PawnAdvance
+  = PawnAdvance V2
+  | PawnDoubleAdvance Int
   | PawnCapture HorizontalDirection
+  | EnPassant Int Int
 
-type QueenMove
-  = QueenStraightMove StraightDirection Int
-  | QueenDiagonalMove DiagonalDirection Int
 
-type KingMove
-  = KingStraightMove StraightDirection
-  | KingDiagonalMove DiagonalDirection
+type RegularMoveError
+  = OutOfBounds V2
+  | TileOccupied V2
+  | PlayerHasNoKing
+  | IncorrectPiece PieceType
+
+type PawnAdvanceError
+  = PawnAdvanceBlocked V2 Piece
+  -- PawnAdvanceMoveError
+  | PawnAdvanceLeavesKingInCheck KingInCheck
+  | PawnAdvanceMoveError RegularMoveError
+
+type PawnMoveError
+  = PawnAdvanceError PawnAdvanceError
+  | PawnDoubleAdvanceError PawnAdvanceError
+
+-- PawnAdvanceError ?
+pawnAdvance : V2 -> Int -> Game -> Result PawnAdvanceError Game
+pawnAdvance v0 i g =
+  let d  = player N S g.turn
+      j  = i - 1
+      v1 = translateStraight d v0
+  in Matrix.get v1 g.board
+    |> M.unwrap
+      (Result.Err (PawnAdvanceMoveError (OutOfBounds v1)))
+      (M.unwrap
+        (if 0 < j
+        then pawnAdvance v1 j g
+        else
+          findKing g.turn g.board
+          |> M.unwrap
+            (Result.Err (PawnAdvanceMoveError PlayerHasNoKing))
+            (\vk ->
+              let nb  = reposition v0 v1 g.board
+                  kcs = inCheck g.turn nb vk
+              in if List.isEmpty kcs
+              then Result.Ok
+                { g | board = nb
+                    , turn  = opponent g.turn
+                    -- , moves = PawnAdvance v0 :: g.moves
+                }
+              else Result.Err (PawnAdvanceLeavesKingInCheck (KingInCheck kcs))
+            )
+        )
+        (Result.Err << PawnAdvanceBlocked v1)
+      )
+
+pawnLegalAdvances : V2 -> Game -> List PawnMove
+pawnLegalAdvances v0 g =
+  R.unwrap [] (always <| List.singleton <| PawnAdvance v0)
+  <| pawnAdvance v0 1 g
+  -- in  [PawnAdvance v0]
+
+pawnLegalMoves : V2 -> Game -> List PawnMove
+pawnLegalMoves v g =
+  [ pawnLegalAdvances v g
+  ]
+  |> List.concat
+
+type RookMove
+  = RookMove V2 StraightDirection Int
+
+type BishopMove
+  = BishopMove V2 DiagonalDirection Int
+
+type KnightMove
+  = KnightMove V2 StraightDirection DiagonalDirection
+
+type QueenMove = QueenMove V2 Direction Int
+
+type KingMove = KingMove V2 Direction
+  -- TODO
+  -- | Castling Castling
+
+type KingMoveError
+  = KingMoveLeavesKingInCheck KingInCheck
+  | KingMoveMoveError RegularMoveError
+
+-- PawnAdvanceError ?
+-- kingMove : V2 -> Direction -> Game -> Result KingMoveError (KingMove, Game) -- head moves
+kingMove : V2 -> Direction -> Game -> Result KingMoveError Game
+kingMove v0 d g =
+  let vf = translate d v0
+  in
+    Matrix.get vf g.board
+    |>
+      M.unwrap
+      (Result.Err (KingMoveMoveError (OutOfBounds vf)))
+      (\mp -> case mp of
+        Nothing ->
+          let nb  = reposition v0 vf g.board
+              kcs = inCheck g.turn nb vf
+          in if List.isEmpty kcs
+          then Result.Ok
+            { g | board = nb
+                , turn  = opponent g.turn
+                -- , moves = PawnAdvance v0 :: g.moves
+            }
+          else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
+        Just p  ->
+          if piecePlayer p == g.turn
+          then Result.Err (KingMoveMoveError (TileOccupied vf))
+          else
+            let nb  = reposition v0 vf g.board
+                kcs = inCheck g.turn nb vf
+            in if List.isEmpty kcs
+            then Result.Ok
+              { g | board = nb
+                  , turn  = opponent g.turn
+                  -- , moves = PawnAdvance v0 :: g.moves
+              }
+            else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
+      )
+  
+
+kingLegalMoves : V2 -> Game -> List KingMove
+kingLegalMoves v0 g =
+  directions
+  |> List.map
+    (\d ->
+      kingMove v0 d g
+      |> Result.toMaybe
+      |> Maybe.map (always (KingMove v0 d))
+    )
+  |> List.filterMap identity
+  
 
 type PieceMove
-  = RookMove   StraightDirection Int
-  | BishopMove DiagonalDirection Int
-  | QueenMove  QueenMove
-  | KingMove   KingMove
-  | KnightMove StraightDirection DiagonalDirection
-  | PawnMove   PawnMove
+  = PawnPieceMove   PawnMove
+  | KnightPieceMove KnightMove
+  | BishopPieceMove BishopMove
+  | RookPieceMove   RookMove
+  | QueenPieceMove  QueenMove
+  | KingPieceMove   KingMove
+  | Temp_TeleportMove V2 V2
 
 type Piece = Piece Player PieceType
 piecePlayer : Piece -> Player
@@ -65,8 +190,8 @@ pawnsRank : Player -> Int
 pawnsRank = player 1 6
 
 type Move
-  = PieceMove (Int, Int) (Int, Int)
-  -- = PieceMove (Int, Int) PieceMove
+  -- = PieceMove V2 V2
+  = PieceMove PieceMove
   | PawnDoubleStep Int
   | Castling Castling
   -- | EnPassant Player Int HorizontalDirection
@@ -105,12 +230,12 @@ setBoard : { a | board : Board } -> Board -> { a | board : Board }
 setBoard a x = { a | board = x }
 
 type Rank = Int
-type Tile = Tile (Int, Int) Piece
+type Tile = Tile V2 Piece
 
 advanceTurn : { a | turn : Player } -> { a | turn : Player }
 advanceTurn a = { a | turn = opponent a.turn }
 
-findKing : Player -> Board -> Maybe (Int, Int)
+findKing : Player -> Board -> Maybe V2
 findKing t =
   Matrix.toIndexedList
   >> L.find (Tuple.second >> M.filter (\(Piece p k) -> k == King && t == p) >> M.isJust)
@@ -123,7 +248,7 @@ isStraightAttacker p = case p of
   Rook  -> True
   _     -> False
 
-inStraightCheck : Player -> Board -> (Int, Int) -> StraightDirection -> Maybe Tile
+inStraightCheck : Player -> Board -> V2 -> StraightDirection -> Maybe Tile
 inStraightCheck t b v0 d =
   let vf = translateStraight d v0
   in Matrix.get vf b
@@ -136,7 +261,7 @@ inStraightCheck t b v0 d =
           else Nothing
       )
 
-inStraightsCheck : Player -> Board -> (Int, Int) -> List Tile
+inStraightsCheck : Player -> Board -> V2 -> List Tile
 inStraightsCheck p b v =
   let check = inStraightCheck p b v
   in List.filterMap identity
@@ -153,7 +278,7 @@ isDiagonalAttacker p = case p of
   Bishop -> True
   _      -> False
 
-inDiagonalCheck : Player -> Board -> (Int, Int) -> DiagonalDirection -> Maybe Tile
+inDiagonalCheck : Player -> Board -> V2 -> DiagonalDirection -> Maybe Tile
 inDiagonalCheck t b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
@@ -166,7 +291,7 @@ inDiagonalCheck t b v0 d =
           else Nothing
       )
 
-inDiagonalsCheck : Player -> Board -> (Int, Int) -> List Tile
+inDiagonalsCheck : Player -> Board -> V2 -> List Tile
 inDiagonalsCheck p b v =
   let check = inDiagonalCheck p b v
   in List.filterMap identity
@@ -177,7 +302,7 @@ inDiagonalsCheck p b v =
   ]
 
 
-inKingStraightOneCheck : Player -> Board -> (Int, Int) -> StraightDirection -> Maybe Tile
+inKingStraightOneCheck : Player -> Board -> V2 -> StraightDirection -> Maybe Tile
 inKingStraightOneCheck t b v0 d =
   let vf = translateStraight d v0
   in Matrix.get vf b
@@ -185,7 +310,7 @@ inKingStraightOneCheck t b v0 d =
     |> M.filter (\p -> t /= piecePlayer p && King == (pieceType p))
     |> Maybe.map (Tile vf)
 
-inKingDiagonalOneCheck : Player -> Board -> (Int, Int) -> DiagonalDirection -> Maybe Tile
+inKingDiagonalOneCheck : Player -> Board -> V2 -> DiagonalDirection -> Maybe Tile
 inKingDiagonalOneCheck t b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
@@ -193,7 +318,7 @@ inKingDiagonalOneCheck t b v0 d =
     |> M.filter (\p -> t /= piecePlayer p && King == (pieceType p))
     |> Maybe.map (Tile vf)
 
-inKingCheck : Player -> Board -> (Int, Int) -> List Tile
+inKingCheck : Player -> Board -> V2 -> List Tile
 inKingCheck p b v =
   let straightOneCheck = inKingStraightOneCheck p b v
       diagonalOneCheck = inKingDiagonalOneCheck p b v
@@ -210,7 +335,7 @@ inKingCheck p b v =
   |> List.filterMap identity
 
 
-inKnightOneCheck : Player -> Board -> (Int, Int) -> StraightDirection -> DiagonalDirection -> Maybe Tile
+inKnightOneCheck : Player -> Board -> V2 -> StraightDirection -> DiagonalDirection -> Maybe Tile
 inKnightOneCheck t b v0 sD dD =
   let vf = translateStraight sD <| translateDiagonal dD v0
   in Matrix.get vf b
@@ -218,7 +343,7 @@ inKnightOneCheck t b v0 sD dD =
     |> M.filter (\p -> t /= piecePlayer p && Knight == (pieceType p))
     |> Maybe.map (Tile vf)
 
-inKnightCheck : Player -> Board -> (Int, Int) -> List Tile
+inKnightCheck : Player -> Board -> V2 -> List Tile
 inKnightCheck p b v = let check = inKnightOneCheck p b v in 
   [ check N NE
   , check N NW
@@ -233,7 +358,7 @@ inKnightCheck p b v = let check = inKnightOneCheck p b v in
 
 
 -- TODO Enpass Pawn ?
-inPawnOneCheck : Player -> Board -> (Int, Int) -> DiagonalDirection -> Maybe Tile
+inPawnOneCheck : Player -> Board -> V2 -> DiagonalDirection -> Maybe Tile
 inPawnOneCheck t b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
@@ -241,25 +366,27 @@ inPawnOneCheck t b v0 d =
     |> M.filter (\p -> t /= piecePlayer p && Pawn == (pieceType p))
     |> Maybe.map (Tile vf)
 
-inPawnCheck : Player -> Board -> (Int, Int) -> List Tile
+inPawnCheck : Player -> Board -> V2 -> List Tile
 inPawnCheck p b v = p
   |> player [ NE, NW ] [ SE, SW ]
   |> List.map (inPawnOneCheck p b v)
   |> List.filterMap identity
 
-inCheck : Player -> Board -> (Int, Int) -> List Tile
-inCheck p b v = Matrix.get v b |> M.join |> M.filter (\x -> p /= piecePlayer x) |>
-  (\mx -> case mx of
-    Nothing ->
-      [ inPawnCheck p b v
-      , inKnightCheck p b v
-      , inDiagonalsCheck p b v
-      , inStraightsCheck p b v
-      , inKingCheck p b v
-      ]
-      |> List.concat
-    Just _  -> []
-  )
+inCheck : Player -> Board -> V2 -> List Tile
+inCheck p b v =
+  Matrix.get v b
+  |> M.join
+  |> M.filter (piecePlayer >> (/=) p)
+  |> M.unwrap
+    [ inPawnCheck
+    , inKnightCheck
+    , inDiagonalsCheck
+    , inStraightsCheck
+    , inKingCheck
+    ]
+    (always [])
+  |> List.map (\f -> f p b v)
+  |> List.concat
 
 isPlayerInCheck : Player -> Board -> Bool
 isPlayerInCheck pl b =
@@ -267,8 +394,11 @@ isPlayerInCheck pl b =
   |> Maybe.map (inCheck pl b >> List.isEmpty)
   |> Maybe.withDefault False
 
-translate : (Int, Int) -> (Int, Int) -> Board -> Maybe Board
-translate v0 vf b = Matrix.get v0 b |> Maybe.map (\mp -> Matrix.set v0 Nothing b |> Matrix.set vf mp)
+tryReposition : V2 -> V2 -> Board -> Maybe Board
+tryReposition v0 vf b = Matrix.get v0 b |> Maybe.map (\mp -> Matrix.set v0 Nothing b |> Matrix.set vf mp)
+
+reposition : V2 -> V2 -> Board -> Board
+reposition v0 vf b = tryReposition v0 vf b |> Maybe.withDefault b
 
 -- TODO All MoveError should probably have context information in Move and Game State
 type MoveError
@@ -276,7 +406,7 @@ type MoveError
   | LeavesPlayerInCheck Player
   | MissingPlayerKing Player
   | TrayectoryBlocked
-  | InvalidTile (Int, Int)
+  | InvalidTile V2
   | NoPlayerPieceInTile
   | IncorrectPawnPlayer Player -- PawnPromotion
   | TileObstructed
@@ -284,6 +414,8 @@ type MoveError
   | ScrambledPieces
   | InvalidPawnForward
   | InvalidPawnCapture
+  | PawnAdvanceTempError PawnAdvanceError
+  | KingMoveTempError KingMoveError
 
 -- type IlegalMove = LeavesPlayerInCheck
 
@@ -295,26 +427,40 @@ tryMove m s =
   in Result.map advanceTurn <| case m of
   PawnDoubleStep f -> Result.Err ScrambledPieces
 
-  PieceMove v0 vf ->
-    (Result.fromMaybe (InvalidTile v0) <| Matrix.get v0 s.board)
-    |> Result.andThen
-      (\mp0 -> (Result.fromMaybe (InvalidTile vf) <| Matrix.get vf s.board)
-      |> Result.andThen
-        (\mpf -> case mp0 of
-          Nothing -> Result.Err NoPlayerPieceInTile
-          Just p0 ->
-            let pp = piecePlayer p0
-            in if M.filter (piecePlayer >> (==) pp) mpf |> M.isJust
-            then Result.Err TileObstructed
-            else s.board
-              |> Matrix.set v0 Nothing
-              |> Matrix.set vf (Just p0)
-              |> Tuple.pair pp
-              |> Result.Ok
-        )
-      )
-    |> R.filter (LeavesPlayerInCheck s.turn) (Tuple2.uncurry isPlayerInCheck)
-    |> Result.map (Tuple.second >> setBoard s)
+  PieceMove p -> case p of
+    PawnPieceMove   pp -> case pp of
+      PawnAdvance v       -> Result.mapError PawnAdvanceTempError (pawnAdvance v 1 s)
+      PawnDoubleAdvance f -> Result.mapError PawnAdvanceTempError (pawnAdvance (f, pawnsRank pl) 2 s)
+      PawnCapture d       -> Result.Ok s
+      EnPassant f0 ff     -> Result.Ok s
+    KnightPieceMove pp -> Result.Ok s
+    BishopPieceMove pp -> Result.Ok s
+    RookPieceMove   pp -> Result.Ok s
+    QueenPieceMove  pp -> Result.Ok s
+    KingPieceMove (KingMove v d) -> Result.mapError KingMoveTempError (kingMove v d s)
+    Temp_TeleportMove v0 vf -> Result.Ok s
+
+
+  -- PieceMove v0 vf ->
+  --   (Result.fromMaybe (InvalidTile v0) <| Matrix.get v0 s.board)
+  --   |> Result.andThen
+  --     (\mp0 -> (Result.fromMaybe (InvalidTile vf) <| Matrix.get vf s.board)
+  --     |> Result.andThen
+  --       (\mpf -> case mp0 of
+  --         Nothing -> Result.Err NoPlayerPieceInTile
+  --         Just p0 ->
+  --           let pp = piecePlayer p0
+  --           in if M.filter (piecePlayer >> (==) pp) mpf |> M.isJust
+  --           then Result.Err TileObstructed
+  --           else s.board
+  --             |> Matrix.set v0 Nothing
+  --             |> Matrix.set vf (Just p0)
+  --             |> Tuple.pair pp
+  --             |> Result.Ok
+  --       )
+  --     )
+  --   |> R.filter (LeavesPlayerInCheck s.turn) (Tuple2.uncurry isPlayerInCheck)
+  --   |> Result.map (Tuple.second >> setBoard s)
   Castling c ->
     let r = castlingRank pl
         { available, setAvailable } = case pl of
@@ -336,8 +482,8 @@ tryMove m s =
           )
         then
           s.board
-          |> translate (4, r) (6, r)
-          |> Maybe.andThen (translate (7, r) (5, r))
+          |> tryReposition (4, r) (6, r)
+          |> Maybe.andThen (tryReposition (7, r) (5, r))
           |> Maybe.map (setBoard s >> setAvailable castlingDisabled)
           |> Result.fromMaybe ScrambledPieces
         else Result.Err CastlingUnavailable
@@ -356,8 +502,8 @@ tryMove m s =
           )
         then
           s.board
-          |> translate (4, r) (2, r)
-          |> Maybe.andThen (translate (0, r) (3, r))
+          |> tryReposition (4, r) (2, r)
+          |> Maybe.andThen (tryReposition (0, r) (3, r))
           |> Maybe.map (setBoard s >> setAvailable castlingDisabled)
           |> Result.fromMaybe ScrambledPieces
         else Result.Err CastlingUnavailable
@@ -403,7 +549,7 @@ tryMove m s =
 play : List Move -> Game -> Result MoveError Game
 play ms g = List.foldr (\m -> Result.andThen (tryMove m)) (Result.Ok g) ms
 
-checkDiagonal : Player -> Board -> (Int, Int) -> DiagonalDirection -> List ((Int, Int), Maybe Piece)
+checkDiagonal : Player -> Board -> V2 -> DiagonalDirection -> List (V2, Maybe Piece)
 checkDiagonal pl b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
@@ -415,7 +561,7 @@ checkDiagonal pl b v0 d =
         mp
       )
 
-checkStraight : Player -> Board -> (Int, Int) -> StraightDirection -> List ((Int, Int), Maybe Piece)
+checkStraight : Player -> Board -> V2 -> StraightDirection -> List (V2, Maybe Piece)
 checkStraight pl b v0 d =
   let vf = translateStraight d v0
   in Matrix.get vf b
@@ -427,20 +573,20 @@ checkStraight pl b v0 d =
         mp
       )
 
-kingLegalMoves : Player -> Game -> (Int, Int) -> List Move
-kingLegalMoves pl g v =
-  let mt = Matrix.get v g.board
-  in
-    straightDirections
-    |> List.map
-      ((\d -> translateStraight d v) >> (PieceMove v))
-    |> List.filter (\m -> tryMove m g |> R.isOk)
+-- temp_kingLegalMoves : Player -> Game -> V2 -> List Move
+-- temp_kingLegalMoves pl g v =
+--   let mt = Matrix.get v g.board
+--   in
+--     straightDirections
+--     |> List.map
+--       ((\d -> translateStraight d v) >> (PieceMove v))
+--     |> List.filter (\m -> tryMove m g |> R.isOk)
 
 -- TODO
 -- PieceMove
-pieceLegalMoves : Game -> (Int, Int) -> Piece -> List Move
+pieceLegalMoves : Game -> V2 -> Piece -> List PieceMove
 pieceLegalMoves g v (Piece pl p) = case p of
-  King -> kingLegalMoves pl g v
+  King -> List.map KingPieceMove (kingLegalMoves v g)
   _    -> []
 --   Queen -> []
 --   Bishop -> []
@@ -448,7 +594,7 @@ pieceLegalMoves g v (Piece pl p) = case p of
 --   Queen -> []
 
 
-playerPieces : Player -> Board -> List ((Int, Int), Piece)
+playerPieces : Player -> Board -> List (V2, Piece)
 playerPieces pl
   = Matrix.toIndexedList
   >> List.filterMap (\(v, mp) -> M.filter (piecePlayer >> (==) pl) mp |> Maybe.map (Tuple.pair v))
@@ -467,8 +613,8 @@ playerStatus pl g =
   let mk = findKing pl g.board
   in case mk of
     Nothing -> Invalid
-    Just k  ->
-      let kInCheck = inCheck pl g.board k
+    Just vk ->
+      let kInCheck = inCheck pl g.board vk
       in case kInCheck of
         [] -> Normal
         -- One vs More
@@ -478,12 +624,12 @@ playerStatus pl g =
           in if List.isEmpty ms
           then StaleMate
           else
-            let klms = kingLegalMoves pl g k
+            let klms = kingLegalMoves vk g
             in if List.isEmpty klms -- TODO other ways of escaping Checkmate
             then CheckMate
             else Check
 
-checkMatrix : (Int, Int) -> Board -> Matrix.Matrix Bool
+checkMatrix : V2 -> Board -> Matrix.Matrix Bool
 checkMatrix v b =
   let empty = (Matrix.repeat (Matrix.size b) False)
   in Matrix.get v b
