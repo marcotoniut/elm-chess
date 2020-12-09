@@ -25,7 +25,7 @@ import Component exposing (emptyAttribute)
 -- MODEL
 type alias Model =
   { input : String
-  , moves : List Move
+  , moves : List PieceMove
   , gameR : Result MoveError Game
   , maybeSelected : Maybe V2
   }
@@ -54,7 +54,7 @@ main = Browser.sandbox { init = init, update = update, view = view }
 -- UPDATE
 type Msg
   = ChangeInput String
-  | MovePiece Move
+  | MovePiece PieceMove
   | SelectTile V2
 
 update : Msg -> Model -> Model
@@ -78,7 +78,7 @@ update msg model = case msg of
               if piecePlayer p == g.turn
               then { model | maybeSelected = Just v }
               else
-                let m  = (PieceMove (Temp_TeleportMove s v))
+                let m  = (Temp_TeleportMove s v)
                     ng = tryMove m g
                 in if R.isOk ng
                 then
@@ -148,14 +148,14 @@ view model =
         , style "grid-template-columns" "repeat(3, 1fr)"
         , style "margin" "1em"
         ]
-        [ moveButton (Castling KingSide) model.gameR
-        , moveButton (Castling QueenSide) model.gameR
-        , moveButton (PieceMove (PawnPieceMove (PawnAdvance (4, 1)))) model.gameR
-        , moveButton (PieceMove (Temp_TeleportMove (3, 1) (3, 3))) model.gameR
-        , moveButton (PieceMove (Temp_TeleportMove (6, 1) (6, 3))) model.gameR
-        , moveButton (PieceMove (Temp_TeleportMove (6, 7) (7, 5))) model.gameR
-        , moveButton (PawnPromotion 2 2 QueenPromotion) model.gameR
-        , moveButton (PawnPromotion 2 3 KnightPromotion) model.gameR
+        [ moveButton (KingPieceMove (KingCastling KingSide)) model.gameR
+        , moveButton (KingPieceMove (KingCastling QueenSide)) model.gameR
+        , moveButton (PawnPieceMove (PawnAdvance (4, 1))) model.gameR
+        , moveButton (Temp_TeleportMove (3, 1) (3, 3)) model.gameR
+        , moveButton (Temp_TeleportMove (6, 1) (6, 3)) model.gameR
+        , moveButton (Temp_TeleportMove (6, 7) (7, 5)) model.gameR
+        , moveButton (PawnPieceMove (PawnPromotion 2 2 QueenPromotion)) model.gameR
+        , moveButton (PawnPieceMove (PawnPromotion 2 3 KnightPromotion)) model.gameR
         ]
       , div
         [ style "margin" "1em"
@@ -188,14 +188,14 @@ view model =
       ]
     ]
 
-moveButton : Move -> Result MoveError Game -> Html Msg
+moveButton : PieceMove -> Result MoveError Game -> Html Msg
 moveButton m rg = button
   [ onClick (MovePiece m)
   , disabled <| R.isErr <| Result.andThen (play [ m ]) rg
   ]
   [ moveText m ]
 
-moveText : Move -> Html a
+moveText : PieceMove -> Html a
 moveText = Debug.toString >> text 
 
 type TileInteraction
