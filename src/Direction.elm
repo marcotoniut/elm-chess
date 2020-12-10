@@ -8,6 +8,11 @@ translateHorizontal h i = case h of
   Left  -> i - 1
   Right -> i + 1
 
+reverseHorizontal : HorizontalDirection -> HorizontalDirection
+reverseHorizontal h = case h of
+   Left  -> Right
+   Right -> Left
+
 type StraightDirection = N | E | S | W
 straightDirections : List StraightDirection
 straightDirections = [ N, E, S, W ]

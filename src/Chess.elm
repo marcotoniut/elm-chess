@@ -150,11 +150,7 @@ pawnEnPassant h g =
     Nothing -> Result.Err PawnEnPassantUnavailable
     Just  l -> case l of
       PawnPieceMove (PawnDoubleAdvance f) ->
-        let v0 = (translateHorizontal h f, enPassantRank pl)
-            d  = pl |> case h of
-              Left  -> player NW SW
-              Right -> player NE SE
-            vf = translateDiagonal d v0
+        let v0 = (translateHorizontal (reverseHorizontal h) f, enPassantRank pl)
         in Matrix.get v0 b
           -- TODO filter
           |> M.join
@@ -169,7 +165,10 @@ pawnEnPassant h g =
                   |> M.unwrap
                     (Result.Err (PawnEnPassantMoveError PlayerHasNoKing))
                     (\vk ->
-                      let nb  = reposition v0 vf b
+                      let d   = pl |> case h of
+                            Left  -> player NW SW
+                            Right -> player NE SE
+                          nb  = reposition v0 (translateDiagonal d v0) b
                           kcs = inCheck pl nb vk
                       in if List.isEmpty kcs
                       then Result.Ok nb
