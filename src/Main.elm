@@ -9,7 +9,7 @@ import Component exposing (blank)
 import Composition exposing (standardComposition, castlingComposition)
 import Debug
 import Html.Attributes exposing (width, height, style, disabled)
-import Html exposing (Html, button, node, div, ul, li, span, text, input)
+import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
 import Matrix
@@ -38,9 +38,9 @@ init =
           initBoard
           -- standardComposition
           castlingComposition
+      , moves = []
       , blackCastlingAvailable = castlingEnabled
       , whiteCastlingAvailable = castlingEnabled
-      , turn = White
       }
   , input = ""
   , moves = []
@@ -61,12 +61,13 @@ update : Msg -> Model -> Model
 update msg model = case msg of
   SelectTile  v -> R.unwrap model
     (\g ->
-      let mp = Matrix.get v g.board |> M.join
+      let pl = gameTurn g
+          mp = Matrix.get v g.board |> M.join
       in case model.maybeSelected of
         Nothing -> case mp of
           Nothing -> model
           Just p  ->
-            if piecePlayer p == g.turn
+            if piecePlayer p == pl
             then { model | maybeSelected = Just v }
             else model
         Just s  ->
@@ -75,7 +76,7 @@ update msg model = case msg of
           else case mp of
             Nothing -> model
             Just p  ->
-              if piecePlayer p == g.turn
+              if piecePlayer p == pl
               then { model | maybeSelected = Just v }
               else
                 let m  = (Temp_TeleportMove s v)
@@ -108,21 +109,19 @@ view model =
           in g.board
           |> Matrix.toList
           |> List.indexedMap
-              (\i xs -> div
+              (\r xs -> div
                 [ style "display" "flex" ]
                 (List.indexedMap
-                  (\j ->
+                  (\f ->
                     let ms = model.maybeSelected
-                        v = (i, j)
-                        ti = case ms of
-                          Nothing -> TileCleared
-                          Just s  ->
-                            if (j, i) == s
-                            then TileSelected
-                            else TileCleared
-                            -- else Matrix.get v checkedMatrix
-                            --   |> M.unwrap TileCleared (always TileChecked) 
-                    in tileView g.board v ti
+                        v = (f, r)
+                    in tileView g.board v
+                    <| case ms of
+                      Nothing -> TileCleared
+                      Just s  ->
+                        if v == s
+                        then TileSelected
+                        else TileCleared
                   ) xs
                 )
               )
@@ -140,7 +139,12 @@ view model =
     , div []
       [ R.unwrap
           blank
-          (\g -> div [] [ text "Turn", text <| Debug.toString g.turn ])
+          (\g -> div []
+            [ text <| "Turn " ++ Debug.toString (gameTurn g)
+            , br [] []
+            , text <| Debug.toString g
+            ]
+          )
           model.gameR
       , div
         [ style "display" "grid"
@@ -151,6 +155,7 @@ view model =
         [ moveButton (KingPieceMove (KingCastling KingSide)) model.gameR
         , moveButton (KingPieceMove (KingCastling QueenSide)) model.gameR
         , moveButton (PawnPieceMove (PawnAdvance (4, 1))) model.gameR
+        , moveButton (BishopPieceMove (BishopMove (0, 3) NE 2)) model.gameR
         , moveButton (Temp_TeleportMove (3, 1) (3, 3)) model.gameR
         , moveButton (Temp_TeleportMove (6, 1) (6, 3)) model.gameR
         , moveButton (Temp_TeleportMove (6, 7) (7, 5)) model.gameR
@@ -204,8 +209,8 @@ type TileInteraction
   | TileCleared
 
 tileView : Board -> V2 -> TileInteraction -> Maybe Piece -> Html Msg
-tileView b (i, j) t mp =
-  let v = (j, i)
+tileView b v t mp =
+  let (i, j) = v
       wcs = inCheck White b v
       bcs = inCheck Black b v
   in div
