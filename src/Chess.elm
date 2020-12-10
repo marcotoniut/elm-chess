@@ -893,11 +893,13 @@ validateMovePiece v t g =
         let pl = piecePlayer p
         in if pl /= gameTurn g
         then Result.Err (IncorrectPlayerMoveError pl)
-        else case t of
-          Pawn -> Result.Ok g
-          _    -> Result.Err (IncorrectPieceTypeMoveError t)
+        else let pt = pieceType p
+        in if t == pt
+        then Result.Ok g
+        else Result.Err (IncorrectPieceTypeMoveError pt)
       )
     )
+    -- TODO Filter
 
 -- accumulate : Traversable t => Applicative f => ...
 play : List PieceMove -> Game -> Result MoveError Game
