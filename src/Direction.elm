@@ -3,6 +3,10 @@ module Direction exposing (..)
 type alias V2 = (Int, Int)
 
 type HorizontalDirection = Left | Right
+translateHorizontal : HorizontalDirection -> Int -> Int
+translateHorizontal h i = case h of
+  Left  -> i - 1
+  Right -> i + 1
 
 type StraightDirection = N | E | S | W
 straightDirections : List StraightDirection

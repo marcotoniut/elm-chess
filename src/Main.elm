@@ -155,12 +155,14 @@ view model =
         [ moveButton (KingPieceMove (KingCastling KingSide)) model.gameR
         , moveButton (KingPieceMove (KingCastling QueenSide)) model.gameR
         , moveButton (PawnPieceMove (PawnAdvance (4, 1))) model.gameR
+        , moveButton (PawnPieceMove (PawnDoubleAdvance 6)) model.gameR
+        , moveButton (PawnPieceMove (PawnEnPassant Right)) model.gameR
         , moveButton (BishopPieceMove (BishopMove (0, 3) NE 2)) model.gameR
+        , moveButton (PawnPieceMove (PawnPromotion 2 2 QueenPromotion)) model.gameR
+        , moveButton (PawnPieceMove (PawnPromotion 2 3 KnightPromotion)) model.gameR
         , moveButton (Temp_TeleportMove (3, 1) (3, 3)) model.gameR
         , moveButton (Temp_TeleportMove (6, 1) (6, 3)) model.gameR
         , moveButton (Temp_TeleportMove (6, 7) (7, 5)) model.gameR
-        , moveButton (PawnPieceMove (PawnPromotion 2 2 QueenPromotion)) model.gameR
-        , moveButton (PawnPieceMove (PawnPromotion 2 3 KnightPromotion)) model.gameR
         ]
       , div
         [ style "margin" "1em"
