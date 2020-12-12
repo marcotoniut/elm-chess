@@ -269,25 +269,28 @@ knightMove v0 sd hd g =
   let vf = knightMoveTarget v0 sd hd
       pl = gameTurn g
   in
-    Matrix.get vf g.board
-    |> M.unwrap
-      (Result.Err (KnightMoveMoveError (OutOfBounds vf)))
-      (\mp -> case mp of
-        Nothing ->
-          let nb  = reposition v0 vf g.board
-              kcs = inCheck pl nb vf
-          in if List.isEmpty kcs
-          then Result.Ok (vf, nb)
-          else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
-        Just p  ->
-          if piecePlayer p == pl
-          then Result.Err (KnightMoveMoveError (PathBlocked vf))
-          else
+    findKing pl g.board
+    |> M.unwrap (Result.Err (KnightMoveMoveError (PlayerHasNoKing)))
+      (\vk -> Matrix.get vf g.board
+      |> M.unwrap
+        (Result.Err (KnightMoveMoveError (OutOfBounds vf)))
+        (\mp -> case mp of
+          Nothing ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vf
+                kcs = inCheck pl nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
+          Just p  ->
+            if piecePlayer p == pl
+            then Result.Err (KnightMoveMoveError (PathBlocked vf))
+            else
+              let nb  = reposition v0 vf g.board
+                  kcs = inCheck pl nb vk
+              in if List.isEmpty kcs
+              then Result.Ok (vf, nb)
+              else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
+        )
       )
 
 knightLegalMoves : V2 -> Game -> List (V2, KnightMove)
@@ -376,7 +379,7 @@ bishopDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb v1
+                  kcs = inCheck pl nb vk
                   rs  = bishopDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, BishopMove v0 d j) :: rs
@@ -386,7 +389,7 @@ bishopDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb v1
+                    kcs = inCheck pl nb vk
                 in if List.isEmpty kcs
                 then [ (v1, BishopMove v0 d j) ]
                 else []
@@ -445,7 +448,7 @@ rookMove v0 d i g =
           (Result.Err (RookMoveMoveError PlayerHasNoKing))
           (\vk ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vf
+                kcs = inCheck pl nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (RookMoveLeavesKingInCheck (KingInCheck kcs))
@@ -467,7 +470,7 @@ rookDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb v1
+                  kcs = inCheck pl nb vk
                   rs  = rookDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, RookMove v0 d j) :: rs
@@ -477,7 +480,7 @@ rookDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb v1
+                    kcs = inCheck pl nb vk
                 in if List.isEmpty kcs
                 then [ (v1, RookMove v0 d j) ]
                 else []
@@ -535,7 +538,7 @@ queenMove v0 d i g =
           (Result.Err (QueenMoveMoveError PlayerHasNoKing))
           (\vk ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vf
+                kcs = inCheck pl nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (QueenMoveLeavesKingInCheck (KingInCheck kcs))
@@ -557,7 +560,7 @@ queenDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb v1
+                  kcs = inCheck pl nb vk
                   rs  = queenDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, QueenMove v0 d j) :: rs
@@ -567,7 +570,7 @@ queenDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb v1
+                    kcs = inCheck pl nb vk
                 in if List.isEmpty kcs
                 then [ (v1, QueenMove v0 d j) ]
                 else []
@@ -816,7 +819,6 @@ inStraightCheck pl b v0 d =
 inStraightsCheck : Player -> Board -> V2 -> List Tile
 inStraightsCheck pl b v = List.filterMap (inStraightCheck pl b v) straightDirections
 
-
 isDiagonalAttacker : PieceType -> Bool
 isDiagonalAttacker p = case p of
   Queen  -> True
@@ -878,7 +880,7 @@ inKnightOneCheck pl b v0 sD dD =
   let vf = translateStraight sD <| translateDiagonal dD v0
   in Matrix.get vf b
     |> M.join
-    |> M.filter (\p -> pl /= piecePlayer p && Knight == (pieceType p))
+    |> M.filter (\p -> pl /= piecePlayer p && Knight == pieceType p)
     |> Maybe.map (Tile vf)
 
 inKnightCheck : Player -> Board -> V2 -> List Tile
@@ -1116,7 +1118,17 @@ pieceLegalMoves g v (Piece pl p) = case p of
 playerPieces : Player -> Board -> List (V2, Piece)
 playerPieces pl
   = Matrix.toIndexedList
-  >> List.filterMap (\(v, mp) -> M.filter (piecePlayer >> (==) pl) mp |> Maybe.map (Tuple.pair v))
+  >> List.filterMap
+    (\(v, mp) -> M.filter (piecePlayer >> (==) pl) mp
+    |> Maybe.map (Tuple.pair v)
+    )
+
+-- type GameStatus
+--   = Invalid
+--   | Normal
+--   | Check Player
+--   | CheckMate Player
+--   | StaleMate
 
 type PlayerStatus
   = Invalid
@@ -1148,35 +1160,35 @@ playerStatus pl g =
             then CheckMate
             else Check
 
-checkMatrix : V2 -> Board -> Matrix.Matrix Bool
-checkMatrix v b =
-  let empty = Matrix.repeat (Matrix.size b) False
-  in Matrix.get v b
-  |> M.join
-  |> M.unwrap
-    empty
-    (\(Piece pl t) -> case t of
-      Bishop -> diagonalDirections
-        |> List.map (checkDiagonal pl b v)
-        |> List.concat
-        |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
-      Rook -> straightDirections
-        |> List.map (checkStraight pl b v)
-        |> List.concat
-        |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
-      Queen ->
-        [ List.map (checkStraight pl b v) straightDirections
-        , List.map (checkDiagonal pl b v) diagonalDirections
-        ]
-        |> List.concat
-        |> List.concat
-        |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
-      -- TODO Rest
-      --  { ne = checkDiagonal pl NE b v
-      --  , se = checkDiagonal pl SE b v
-      --  , sw = checkDiagonal pl SW b v
-      --  , nw = checkDiagonal pl NW b v
-      --  }
-      --  Rook   -> inStraightsCheck pl b v
-      _ -> Matrix.repeat (Matrix.size b) False
-    )
+-- checkMatrix : V2 -> Board -> Matrix.Matrix Bool
+-- checkMatrix v b =
+--   let empty = Matrix.repeat (Matrix.size b) False
+--   in Matrix.get v b
+--   |> M.join
+--   |> M.unwrap
+--     empty
+--     (\(Piece pl t) -> case t of
+--       Bishop -> diagonalDirections
+--         |> List.map (checkDiagonal pl b v)
+--         |> List.concat
+--         |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
+--       Rook -> straightDirections
+--         |> List.map (checkStraight pl b v)
+--         |> List.concat
+--         |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
+--       Queen ->
+--         [ List.map (checkStraight pl b v) straightDirections
+--         , List.map (checkDiagonal pl b v) diagonalDirections
+--         ]
+--         |> List.concat
+--         |> List.concat
+--         |> List.foldl (\(v1, _) -> Matrix.set v1 True) empty
+--       -- TODO Rest
+--       --  { ne = checkDiagonal pl NE b v
+--       --  , se = checkDiagonal pl SE b v
+--       --  , sw = checkDiagonal pl SW b v
+--       --  , nw = checkDiagonal pl NW b v
+--       --  }
+--       --  Rook   -> inStraightsCheck pl b v
+--       _ -> Matrix.repeat (Matrix.size b) False
+--     )

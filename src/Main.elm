@@ -75,23 +75,32 @@ update msg model = case msg of
         Just (s, ms) ->
           if s == v
           then { model | maybeSelected = Nothing }
-          else
-            let mp = Matrix.get v g.board |> M.join
-            in case mp of
-              Nothing -> model
-              Just p  ->
-                if piecePlayer p == pl
-                then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
-                else
-                  let m  = (Temp_TeleportMove s v)
-                      ng = tryMove m g
-                  in if R.isOk ng
-                  then
-                    { model | gameR = ng
-                            , maybeSelected = Nothing 
-                            , moves = m :: model.moves
-                    }
-                  else model
+          else case L.find (\(vm, _) -> vm == v) ms of
+            Nothing ->
+              let mp = Matrix.get v g.board |> M.join
+              in case mp of
+                Nothing -> { model | maybeSelected = Nothing }
+                Just p  ->
+                  if piecePlayer p == pl
+                  then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
+                  else { model | maybeSelected = Nothing }
+                    -- let m  = (Temp_TeleportMove s v)
+                    --     ng = tryMove m g
+                    -- in if R.isOk ng
+                    -- then
+                    --   { model | gameR = ng
+                    --           , maybeSelected = Nothing 
+                    --           , moves = m :: model.moves
+                    --   }
+                    -- else model
+            Just (_, m) ->
+              let ng = tryMove m g
+              in
+                { model | gameR = ng
+                        , maybeSelected = Nothing 
+                        , moves = m :: model.moves
+                }
+
     ) model.gameR
   ChangeInput i -> { model | input = i }
   MovePiece m   ->
@@ -234,21 +243,31 @@ tileView b v t mp =
     , onClick <| SelectTile v
     ]
     [ div
-      [ style "backgroundColor"
-        <| case t of
-          TileSelected  -> "mediumvioletred"
-          TileChecked m -> "brown"
-          TileCleared   -> "transparent"
-            -- if List.isEmpty wcs
-            -- then if List.isEmpty bcs then "transparent" else "blue"
-            -- else if List.isEmpty bcs then "red"         else "magenta"
-      , style "opacity" (if t == TileSelected then "1" else ".2")
-      , style "position" "absolute"
-      , style "bottom" "0"
-      , style "left" "0"
-      , style "right" "0"
-      , style "top" "0"
-      ]
+      (List.concat
+        [
+          [ style "position" "absolute"
+          , style "bottom" "0"
+          , style "left" "0"
+          , style "right" "0"
+          , style "top" "0"
+          ]
+          , case t of
+            TileSelected  ->
+              [ style "backgroundColor" "mediumvioletred"
+              , style "opacity" ".7"
+              ]
+            TileChecked m ->
+              [ style "backgroundColor" "brown"
+              , style "opacity" ".4"
+              ]
+            TileCleared   ->
+              [ style "backgroundColor" "transparent"
+              ]
+              -- if List.isEmpty wcs
+              -- then if List.isEmpty bcs then "transparent" else "blue"
+              -- else if List.isEmpty bcs then "red"         else "magenta"
+        ]
+      )
       []
     , span
       [ style "position" "absolute"
