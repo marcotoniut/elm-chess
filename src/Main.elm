@@ -13,6 +13,7 @@ import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
 import Matrix
+import List.Extra as L
 import Maybe.Extra as M
 import Result.Extra as R
 import Theme exposing (
@@ -27,7 +28,7 @@ type alias Model =
   { input : String
   , moves : List PieceMove
   , gameR : Result MoveError Game
-  , maybeSelected : Maybe V2
+  , maybeSelected : Maybe (V2, List (V2, PieceMove))
   }
 
 init : Model
@@ -62,32 +63,35 @@ update msg model = case msg of
   SelectTile  v -> R.unwrap model
     (\g ->
       let pl = gameTurn g
-          mp = Matrix.get v g.board |> M.join
       in case model.maybeSelected of
-        Nothing -> case mp of
-          Nothing -> model
-          Just p  ->
-            if piecePlayer p == pl
-            then { model | maybeSelected = Just v }
-            else model
-        Just s  ->
-          if s == v
-          then { model | maybeSelected = Nothing }
-          else case mp of
+        Nothing     ->
+          let mp = Matrix.get v g.board |> M.join
+          in case mp of
             Nothing -> model
             Just p  ->
               if piecePlayer p == pl
-              then { model | maybeSelected = Just v }
-              else
-                let m  = (Temp_TeleportMove s v)
-                    ng = tryMove m g
-                in if R.isOk ng
-                then
-                  { model | gameR = ng
-                          , maybeSelected = Nothing 
-                          , moves = m :: model.moves
-                  }
-                else model
+              then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
+              else model
+        Just (s, ms) ->
+          if s == v
+          then { model | maybeSelected = Nothing }
+          else
+            let mp = Matrix.get v g.board |> M.join
+            in case mp of
+              Nothing -> model
+              Just p  ->
+                if piecePlayer p == pl
+                then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
+                else
+                  let m  = (Temp_TeleportMove s v)
+                      ng = tryMove m g
+                  in if R.isOk ng
+                  then
+                    { model | gameR = ng
+                            , maybeSelected = Nothing 
+                            , moves = m :: model.moves
+                    }
+                  else model
     ) model.gameR
   ChangeInput i -> { model | input = i }
   MovePiece m   ->
@@ -104,27 +108,27 @@ view model =
       -- [ Result.andThen (\g -> play g model.moves) model.gameR
       [ model.gameR
         |> Result.map
-          (\g ->
-          let checkedMatrix = checkMatrix (Maybe.withDefault (-1, -1) model.maybeSelected) g.board
-          in g.board
+          (\g -> g.board
           |> Matrix.toList
           |> List.indexedMap
-              (\r xs -> div
-                [ style "display" "flex" ]
-                (List.indexedMap
-                  (\f ->
-                    let ms = model.maybeSelected
-                        v = (f, r)
-                    in tileView g.board v
-                    <| case ms of
-                      Nothing -> TileCleared
-                      Just s  ->
-                        if v == s
-                        then TileSelected
-                        else TileCleared
-                  ) xs
-                )
+            (\r xs -> div
+              [ style "display" "flex" ]
+              (List.indexedMap
+                (\f ->
+                  let ms = model.maybeSelected
+                      v = (f, r)
+                  in tileView g.board v
+                  <| case ms of
+                    Nothing      -> TileCleared
+                    Just (s, ls) ->
+                      if v == s
+                      then TileSelected
+                      else case L.find (\(vm, _) -> vm == v) ls of
+                        Nothing     -> TileCleared
+                        Just (_, m) -> TileChecked m
+                ) xs
               )
+            )
           |> List.reverse
           |> div
             [ style "borderColor" borderColor
@@ -160,9 +164,6 @@ view model =
         , moveButton (BishopPieceMove (BishopMove (0, 3) NE 1)) model.gameR
         , moveButton (PawnPieceMove (PawnPromotion 2 2 QueenPromotion)) model.gameR
         , moveButton (PawnPieceMove (PawnPromotion 2 3 KnightPromotion)) model.gameR
-        , moveButton (Temp_TeleportMove (3, 1) (3, 3)) model.gameR
-        , moveButton (Temp_TeleportMove (6, 1) (6, 3)) model.gameR
-        , moveButton (Temp_TeleportMove (6, 7) (7, 5)) model.gameR
         ]
       , div
         [ style "margin" "1em"
@@ -216,7 +217,7 @@ moveText = Debug.toString >> text
 
 type TileInteraction
   = TileSelected
-  | TileChecked
+  | TileChecked (PieceMove)
   | TileCleared
 
 tileView : Board -> V2 -> TileInteraction -> Maybe Piece -> Html Msg
@@ -235,12 +236,12 @@ tileView b v t mp =
     [ div
       [ style "backgroundColor"
         <| case t of
-          TileSelected -> "mediumvioletred"
-          TileChecked  -> "green"
-          TileCleared  ->
-            if List.isEmpty wcs
-            then if List.isEmpty bcs then "transparent" else "blue"
-            else if List.isEmpty bcs then "red"         else "magenta"
+          TileSelected  -> "mediumvioletred"
+          TileChecked m -> "brown"
+          TileCleared   -> "transparent"
+            -- if List.isEmpty wcs
+            -- then if List.isEmpty bcs then "transparent" else "blue"
+            -- else if List.isEmpty bcs then "red"         else "magenta"
       , style "opacity" (if t == TileSelected then "1" else ".2")
       , style "position" "absolute"
       , style "bottom" "0"

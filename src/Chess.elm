@@ -10,6 +10,9 @@ import Matrix
 import List
 import Html.Attributes exposing (kind)
 import Direction exposing (..)
+import List
+import Matrix
+import Tuple
 
 type Player = White | Black
 player : a -> a -> Player -> a
@@ -65,7 +68,7 @@ pawnAdvanceForward v0 i g =
       )
 
 -- PawnAdvanceError ?
-pawnAdvance : V2 -> Int -> Game -> Result PawnAdvanceError Board
+pawnAdvance : V2 -> Int -> Game -> Result PawnAdvanceError (V2, Board)
 pawnAdvance v0 i g =
   let pl = gameTurn g
   in pawnAdvanceForward v0 i g
@@ -78,19 +81,19 @@ pawnAdvance v0 i g =
           let nb  = reposition v0 vf g.board
               kcs = inCheck pl nb vk
           in if List.isEmpty kcs
-          then Result.Ok nb
+          then Result.Ok (vf, nb)
           else Result.Err (PawnAdvanceLeavesKingInCheck (KingInCheck kcs))
         )
     )
 
-pawnLegalAdvances : V2 -> Game -> List PawnMove
+pawnLegalAdvances : V2 -> Game -> List (V2, PawnMove)
 pawnLegalAdvances v0 g =
-  R.unwrap [] (always <| List.singleton <| PawnAdvance v0)
+  R.unwrap [] (\(v, _) -> List.singleton (v, PawnAdvance v0))
   <| pawnAdvance v0 1 g
 
-pawnLegalDoubleAdvances : Int -> Game -> List PawnMove
+pawnLegalDoubleAdvances : Int -> Game -> List (V2, PawnMove)
 pawnLegalDoubleAdvances f g =
-  R.unwrap [] (always <| List.singleton <| PawnDoubleAdvance f)
+  R.unwrap [] (\(v, _) -> List.singleton (v, PawnDoubleAdvance f))
   <| pawnAdvance (f, pawnsRank (gameTurn g)) 2 g
 
 
@@ -99,7 +102,7 @@ type PawnCaptureError
   | PawnCaptureLeavesKingInCheck KingInCheck
   | PawnCaptureMoveError RegularMoveError
 
-pawnCapture : V2 -> HorizontalDirection -> Game -> Result PawnCaptureError Board
+pawnCapture : V2 -> HorizontalDirection -> Game -> Result PawnCaptureError (V2, Board)
 pawnCapture v0 h g =
   let pl = gameTurn g
       d  = pl |> case h of
@@ -119,19 +122,19 @@ pawnCapture v0 h g =
               let nb  = reposition v0 vf g.board
                   kcs = inCheck pl nb vk
               in if List.isEmpty kcs
-              then Result.Ok nb
+              then Result.Ok (vf, nb)
               else Result.Err (PawnCaptureLeavesKingInCheck (KingInCheck kcs))
             )
       )
 
-pawnLegalCaptures : V2 -> Game -> List PawnMove
+pawnLegalCaptures : V2 -> Game -> List (V2, PawnMove)
 pawnLegalCaptures v0 g =
   [ Left, Right ]
   |> List.filterMap
     (\d ->
       pawnCapture v0 d g
       |> Result.toMaybe
-      |> Maybe.map (always (PawnCapture v0 d))
+      |> Maybe.map (\(v, _) -> (v, PawnCapture v0 d))
     )
 
 
@@ -141,7 +144,7 @@ type PawnEnPassantError
   | PawnEnPassantLeavesKingInCheck KingInCheck
   | PawnEnPassantMoveError RegularMoveError
 
-pawnEnPassant : HorizontalDirection -> Game -> Result PawnEnPassantError Board
+pawnEnPassant : HorizontalDirection -> Game -> Result PawnEnPassantError (V2, Board)
 pawnEnPassant h g =
   let pl = gameTurn g
       ml = List.head g.moves
@@ -168,24 +171,25 @@ pawnEnPassant h g =
                       let d   = pl |> case h of
                             Left  -> player NW SW
                             Right -> player NE SE
-                          nb  = reposition v0 (translateDiagonal d v0) b
+                          vf = translateDiagonal d v0
+                          nb  = reposition v0 vf b
                           kcs = inCheck pl nb vk
                       in if List.isEmpty kcs
-                      then Result.Ok nb
+                      then Result.Ok (vf, nb)
                       else Result.Err (PawnEnPassantLeavesKingInCheck (KingInCheck kcs))
                     )
                 _ -> Result.Err (PawnEnPassantNoAttacker v0)
             )
       _ -> Result.Err PawnEnPassantUnavailable
 
-pawnLegalEnPassants : Game -> List PawnMove
+pawnLegalEnPassants : Game -> List (V2, PawnMove)
 pawnLegalEnPassants g =
   [ Left, Right ]
   |> List.filterMap
     (\d ->
       pawnEnPassant d g
       |> Result.toMaybe
-      |> Maybe.map (always (PawnEnPassant d))
+      |> Maybe.map (\(v, _) -> (v, PawnEnPassant d))
     )
 
 type PawnPromotionError
@@ -194,7 +198,7 @@ type PawnPromotionError
   | PawnPromotionLeavesKingInCheck KingInCheck
   | PawnPromotionMoveError RegularMoveError
 
-pawnPromotion : Int -> Int -> PawnPromotion -> Game -> Result PawnPromotionError Board
+pawnPromotion : Int -> Int -> PawnPromotion -> Game -> Result PawnPromotionError (V2, Board)
 pawnPromotion f0 ff pr g =
     let pl = gameTurn g
         b  = g.board
@@ -220,10 +224,11 @@ pawnPromotion f0 ff pr g =
           then
             Matrix.set v0 Nothing b
             |> Matrix.set vf (Just (Piece pl (promote pr)))
+            |> Tuple.pair vf
             |> Result.Ok
           -- TODO
           -- else Result.Err InvalidPawnCapture
-          else Result.Ok b
+          else Result.Ok (vf, b)
         Just pf ->
           if f0 /= ff
           then
@@ -231,14 +236,15 @@ pawnPromotion f0 ff pr g =
             then
               Matrix.set v0 Nothing b
               |> Matrix.set vf (Just (Piece pl (promote pr)))
+              |> Tuple.pair vf
               |> Result.Ok
             else Result.Err (PawnPromotionMoveError (PathBlocked vf))
           -- TODO
           -- else Result.Err (PawnPromotionMoveError InvalidPawnForward)
-          else Result.Ok b
+          else Result.Ok (vf, b)
 
 
-pawnLegalMoves : V2 -> Game -> List PawnMove
+pawnLegalMoves : V2 -> Game -> List (V2, PawnMove)
 pawnLegalMoves v g =
   [ pawnLegalAdvances v g
   -- TODO
@@ -249,15 +255,18 @@ pawnLegalMoves v g =
 
 
 type KnightMove
-  = KnightMove V2 StraightDirection DiagonalDirection
+  = KnightMove V2 StraightDirection HorizontalDirection
 
 type KnightMoveError
   = KnightMoveLeavesKingInCheck KingInCheck
   | KnightMoveMoveError RegularMoveError
 
-knightMove : V2 -> StraightDirection -> DiagonalDirection -> Game -> Result KnightMoveError Board
-knightMove v0 sd dd g =
-  let vf = translateDiagonal dd <| translateStraight sd v0
+knightMoveTarget : V2 -> StraightDirection -> HorizontalDirection -> V2
+knightMoveTarget v0 sd hd = translateDiagonal (turnDiagonal sd hd) <| translateStraight sd v0
+
+knightMove : V2 -> StraightDirection -> HorizontalDirection -> Game -> Result KnightMoveError (V2, Board)
+knightMove v0 sd hd g =
+  let vf = knightMoveTarget v0 sd hd
       pl = gameTurn g
   in
     Matrix.get vf g.board
@@ -268,7 +277,7 @@ knightMove v0 sd dd g =
           let nb  = reposition v0 vf g.board
               kcs = inCheck pl nb vf
           in if List.isEmpty kcs
-          then Result.Ok nb
+          then Result.Ok (vf, nb)
           else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
         Just p  ->
           if piecePlayer p == pl
@@ -277,9 +286,29 @@ knightMove v0 sd dd g =
             let nb  = reposition v0 vf g.board
                 kcs = inCheck pl nb vf
             in if List.isEmpty kcs
-            then Result.Ok nb
+            then Result.Ok (vf, nb)
             else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
       )
+
+knightLegalMoves : V2 -> Game -> List (V2, KnightMove)
+knightLegalMoves v g =
+  -- TODO? KnightMove N Left v
+  [ KnightMove v N Left
+  , KnightMove v N Right
+  , KnightMove v E Left
+  , KnightMove v E Right
+  , KnightMove v S Left
+  , KnightMove v S Right
+  , KnightMove v W Left
+  , KnightMove v W Right
+  ]
+  |> List.filterMap
+    (\m -> m
+    |> (\(KnightMove v0 sd hd) -> knightMove v0 sd hd g)
+    |> Result.toMaybe
+    |> Maybe.map (\(vf, _) -> (vf, m))
+    -- |> Maybe.map (always m)
+    )
 
 
 type BishopMove
@@ -311,7 +340,10 @@ bishopMoveForward v0 d i g =
           else Result.Ok v1
       )
 
-bishopMove : V2 -> DiagonalDirection -> Int -> Game -> Result BishopMoveError Board
+-- bishopMoveTarget : V2 -> DiagonalDirection -> Int -> V2
+-- bishopMoveTarget v d n = List.foldl (\_ -> translateDiagonal d) v (List.range 0 (n - 1))
+
+bishopMove : V2 -> DiagonalDirection -> Int -> Game -> Result BishopMoveError (V2, Board)
 bishopMove v0 d i g =
   let pl = gameTurn g
   in bishopMoveForward v0 d i g
@@ -324,10 +356,49 @@ bishopMove v0 d i g =
             let nb  = reposition v0 vf g.board
                 kcs = inCheck pl nb vk
             in if List.isEmpty kcs
-            then Result.Ok nb
+            then Result.Ok (vf, nb)
             else Result.Err (BishopMoveLeavesKingInCheck (KingInCheck kcs))
           )
       )
+
+bishopDirectionLegalMoves : Int -> V2 -> DiagonalDirection -> Game -> List (V2, BishopMove)
+bishopDirectionLegalMoves i v0 d g =
+  let pl = gameTurn g
+      v1 = List.foldl (\_ -> translateDiagonal d) v0 (List.range 0 i)
+      j = i + 1
+  in findKing pl g.board
+    |> M.unwrap
+      []
+      (\vk ->
+        Matrix.get v1 g.board
+        |> M.unwrap
+          []
+          (\mp -> case mp of
+            Nothing ->
+              let nb  = reposition v0 v1 g.board
+                  kcs = inCheck pl nb v1
+                  rs  = bishopDirectionLegalMoves j v0 d g
+              in if List.isEmpty kcs
+              then (v1, BishopMove v0 d j) :: rs
+              else rs
+            Just p  ->
+              if piecePlayer p == pl
+              then []
+              else
+                let nb  = reposition v0 v1 g.board
+                    kcs = inCheck pl nb v1
+                in if List.isEmpty kcs
+                then [ (v1, BishopMove v0 d j) ]
+                else []
+          )
+      )
+
+bishopLegalMoves : V2 -> Game -> List (V2, BishopMove)
+bishopLegalMoves v0 g =
+  diagonalDirections
+  |> List.map (\d -> bishopDirectionLegalMoves 0 v0 d g)
+  |> List.concat
+
 
 type RookMove
   = RookMove V2 StraightDirection Int
@@ -359,8 +430,11 @@ rookMoveForward v0 d i g =
           else Result.Ok v1
       )
 
+-- rookMoveTarget : V2 -> StraightDirection -> Int -> V2
+-- rookMoveTarget v0 d n = List.foldl (\_ -> translateStraight d) v0 (List.range 0 (n - 1))
+
 -- TODO Accumulate Lazy Move Results ?
-rookMove : V2 -> StraightDirection -> Int -> Game -> Result RookMoveError Board
+rookMove : V2 -> StraightDirection -> Int -> Game -> Result RookMoveError (V2, Board)
 rookMove v0 d i g =
   let pl = gameTurn g
   in rookMoveForward v0 d i g
@@ -373,11 +447,49 @@ rookMove v0 d i g =
             let nb  = reposition v0 vf g.board
                 kcs = inCheck pl nb vf
             in if List.isEmpty kcs
-            then Result.Ok nb
+            then Result.Ok (vf, nb)
             else Result.Err (RookMoveLeavesKingInCheck (KingInCheck kcs))
           )
       )
-  
+
+rookDirectionLegalMoves : Int -> V2 -> StraightDirection -> Game -> List (V2, RookMove)
+rookDirectionLegalMoves i v0 d g =
+  let pl = gameTurn g
+      v1 = List.foldl (\_ -> translateStraight d) v0 (List.range 0 i)
+      j = i + 1
+  in findKing pl g.board
+    |> M.unwrap
+      []
+      (\vk ->
+        Matrix.get v1 g.board
+        |> M.unwrap
+          []
+          (\mp -> case mp of
+            Nothing ->
+              let nb  = reposition v0 v1 g.board
+                  kcs = inCheck pl nb v1
+                  rs  = rookDirectionLegalMoves j v0 d g
+              in if List.isEmpty kcs
+              then (v1, RookMove v0 d j) :: rs
+              else rs
+            Just p  ->
+              if piecePlayer p == pl
+              then []
+              else
+                let nb  = reposition v0 v1 g.board
+                    kcs = inCheck pl nb v1
+                in if List.isEmpty kcs
+                then [ (v1, RookMove v0 d j) ]
+                else []
+          )
+      )
+
+rookLegalMoves : V2 -> Game -> List (V2, RookMove)
+rookLegalMoves v0 g =
+  straightDirections
+  |> List.map (\d -> rookDirectionLegalMoves 0 v0 d g)
+  |> List.concat
+
 
 type QueenMove = QueenMove V2 Direction Int
 
@@ -408,8 +520,11 @@ queenMoveForward v0 d i g =
           else Result.Ok v1
       )
 
+-- queenMoveTarget : V2 -> Direction -> Int -> V2
+-- queenMoveTarget v d n = List.foldl (\_ -> translate d) v (List.range 0 (n - 1))
+
 -- TODO Accumulate Lazy Move Results ?
-queenMove : V2 -> Direction -> Int -> Game -> Result QueenMoveError Board
+queenMove : V2 -> Direction -> Int -> Game -> Result QueenMoveError (V2, Board)
 queenMove v0 d i g =
   let pl = gameTurn g
   in queenMoveForward v0 d i g
@@ -422,10 +537,49 @@ queenMove v0 d i g =
             let nb  = reposition v0 vf g.board
                 kcs = inCheck pl nb vf
             in if List.isEmpty kcs
-            then Result.Ok nb
+            then Result.Ok (vf, nb)
             else Result.Err (QueenMoveLeavesKingInCheck (KingInCheck kcs))
           )
       )
+
+queenDirectionLegalMoves : Int -> V2 -> Direction -> Game -> List (V2, QueenMove)
+queenDirectionLegalMoves i v0 d g =
+  let pl = gameTurn g
+      v1 = List.foldl (\_ -> translate d) v0 (List.range 0 i)
+      j = i + 1
+  in findKing pl g.board
+    |> M.unwrap
+      []
+      (\vk ->
+        Matrix.get v1 g.board
+        |> M.unwrap
+          []
+          (\mp -> case mp of
+            Nothing ->
+              let nb  = reposition v0 v1 g.board
+                  kcs = inCheck pl nb v1
+                  rs  = queenDirectionLegalMoves j v0 d g
+              in if List.isEmpty kcs
+              then (v1, QueenMove v0 d j) :: rs
+              else rs
+            Just p  ->
+              if piecePlayer p == pl
+              then []
+              else
+                let nb  = reposition v0 v1 g.board
+                    kcs = inCheck pl nb v1
+                in if List.isEmpty kcs
+                then [ (v1, QueenMove v0 d j) ]
+                else []
+          )
+      )
+
+
+queenLegalMoves : V2 -> Game -> List (V2, QueenMove)
+queenLegalMoves v0 g =
+  directions
+  |> List.map (\d -> queenDirectionLegalMoves 0 v0 d g)
+  |> List.concat
 
 
 type KingMove
@@ -436,7 +590,10 @@ type KingMoveError
   = KingMoveLeavesKingInCheck KingInCheck
   | KingMoveMoveError RegularMoveError
 
-kingMove : V2 -> Direction -> Game -> Result KingMoveError Board
+-- kingMoveTarget : V2 -> Direction -> V2
+-- kingMoveTarget v d = translate d v
+
+kingMove : V2 -> Direction -> Game -> Result KingMoveError (V2, Board)
 kingMove v0 d g =
   let pl = gameTurn g
       vf = translate d v0
@@ -449,7 +606,7 @@ kingMove v0 d g =
           let nb  = reposition v0 vf g.board
               kcs = inCheck pl nb vf
           in if List.isEmpty kcs
-          then Result.Ok nb
+          then Result.Ok (vf, nb)
           else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
         Just p  ->
           if piecePlayer p == pl
@@ -458,7 +615,7 @@ kingMove v0 d g =
             let nb  = reposition v0 vf g.board
                 kcs = inCheck pl nb vf
             in if List.isEmpty kcs
-            then Result.Ok nb
+            then Result.Ok (vf, nb)
             else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
       )
 
@@ -516,15 +673,20 @@ kingCastling c g =
         |> Result.fromMaybe KingCastlingUnavailable
       else Result.Err KingCastlingUnavailable
 
+kingCastlingTarget : Castling -> Player -> V2
+kingCastlingTarget c pl = Tuple.pair (castlingRank pl) <| case c of
+  KingSide  -> 6
+  QueenSide -> 2
+  
 
-kingLegalMoves : V2 -> Game -> List KingMove
+kingLegalMoves : V2 -> Game -> List (V2, KingMove)
 kingLegalMoves v0 g =
   directions
   |> List.filterMap
     (\d ->
       kingMove v0 d g
       |> Result.toMaybe
-      |> Maybe.map (always (KingMove v0 d))
+      |> Maybe.map (\(vf, _) -> (vf, KingMove v0 d))
     )
   
 type PieceMove
@@ -804,38 +966,39 @@ tryMove m g =
       PawnAdvance v          ->
         validateMovePiece v Pawn g
         |> Result.andThen (pawnAdvance v 1 >> Result.mapError PawnAdvancePieceMoveError)
-        |> Result.map (asBoardIn g)
+        |> Result.map (Tuple.second >> asBoardIn g)
       PawnDoubleAdvance f    ->
         let v = (f, pawnsRank (gameTurn g))
         in validateMovePiece v Pawn g
         |> Result.andThen (pawnAdvance v 2 >> Result.mapError PawnAdvancePieceMoveError)
-        |> Result.map (asBoardIn g)
+        |> Result.map (Tuple.second >> asBoardIn g)
       PawnCapture v d        ->
         validateMovePiece v Pawn g
         |> Result.andThen (pawnCapture v d >> Result.mapError PawnCapturePieceMoveError)
-        |> Result.map (asBoardIn g)
+        |> Result.map (Tuple.second >> asBoardIn g)
       PawnPromotion f0 ff pr ->
         let v = (f0, promotionRank (gameTurn g))
         in validateMovePiece v Pawn g
         |> Result.andThen (pawnPromotion f0 ff pr >> Result.mapError PawnPromotionPieceMoveError)
-        |> Result.map (asBoardIn g)
+        |> Result.map (Tuple.second >> asBoardIn g)
       PawnEnPassant h        ->
         pawnEnPassant h g
         |> Result.mapError PawnEnPassantPieceMoveError
-        |> Result.map (asBoardIn g)
+        |> Result.map (Tuple.second >> asBoardIn g)
     KnightPieceMove (KnightMove v sd dd) ->
       validateMovePiece v Knight g
       |> Result.andThen (knightMove v sd dd >> Result.mapError KnightMovePieceMoveError)
-      |> Result.map (asBoardIn g)
+      |> Result.map (Tuple.second >> asBoardIn g)
     BishopPieceMove   (BishopMove v d i) ->
       validateMovePiece v Bishop g
       |> Result.andThen (bishopMove v d i >> Result.mapError BishopMovePieceMoveError)
-      |> Result.map (asBoardIn g)
+      |> Result.map (Tuple.second >> asBoardIn g)
     RookPieceMove       (RookMove v d i) ->
       validateMovePiece v Rook g
       |> Result.andThen (rookMove v d i >> Result.mapError RookMovePieceMoveError)
       |> Result.map
-        (asBoardIn g
+        (Tuple.second
+        >> asBoardIn g
         >>
           (\ng ->
             let f = Tuple.first v
@@ -857,13 +1020,13 @@ tryMove m g =
     QueenPieceMove     (QueenMove v d i) ->
       validateMovePiece v Queen g
       |> Result.andThen (queenMove v d i >> Result.mapError QueenMovePieceMoveError)
-      |> Result.map (asBoardIn g)
+      |> Result.map (Tuple.second >> asBoardIn g)
     KingPieceMove pp ->
       (case pp of
         KingMove v d   ->
           validateMovePiece v King g
           |> Result.andThen (kingMove v d >> Result.mapError KingMovePieceMoveError)
-          |> Result.map (asBoardIn g)
+          |> Result.map (Tuple.second >> asBoardIn g)
         -- TODO
         KingCastling c ->
           Result.mapError KingCastlingPieceMoveError (kingCastling c g)
@@ -940,14 +1103,14 @@ checkStraight pl b v0 d =
 
 -- TODO
 -- PieceMove
-pieceLegalMoves : Game -> V2 -> Piece -> List PieceMove
+pieceLegalMoves : Game -> V2 -> Piece -> List (V2, PieceMove)
 pieceLegalMoves g v (Piece pl p) = case p of
-  King -> List.map KingPieceMove (kingLegalMoves v g)
-  _    -> []
---   Queen -> []
---   Bishop -> []
---   Queen -> []
---   Queen -> []
+  Pawn   -> List.map (Tuple.mapSecond PawnPieceMove)   <| pawnLegalMoves   v g
+  Knight -> List.map (Tuple.mapSecond KnightPieceMove) <| knightLegalMoves v g
+  Bishop -> List.map (Tuple.mapSecond BishopPieceMove) <| bishopLegalMoves v g
+  Rook   -> List.map (Tuple.mapSecond RookPieceMove)   <| rookLegalMoves   v g
+  Queen  -> List.map (Tuple.mapSecond QueenPieceMove)  <| queenLegalMoves  v g
+  King   -> List.map (Tuple.mapSecond KingPieceMove)   <| kingLegalMoves   v g
 
 
 playerPieces : Player -> Board -> List (V2, Piece)
