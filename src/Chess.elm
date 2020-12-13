@@ -1,18 +1,15 @@
 module Chess exposing (..)
 
+import Direction exposing (..)
+import Html.Attributes exposing (kind)
 import Matrix
 import Maybe.Extra as M
-import List.Extra as L
 import Result.Extra as R
-import Tuple2
 import List
-import Matrix
-import List
-import Html.Attributes exposing (kind)
-import Direction exposing (..)
-import List
-import Matrix
+import List.Extra as L
 import Tuple
+import Tuple2
+import Tuple2
 
 type Player = White | Black
 player : a -> a -> Player -> a
@@ -55,7 +52,10 @@ pawnAdvanceForward : V2 -> Int -> Game -> Result PawnAdvanceError V2
 pawnAdvanceForward v0 i g =
   let pl = gameTurn g
       v1 = translateStraight (player N S pl) v0
-  in Matrix.get v1 g.board
+      rf = Tuple.second v1
+  in if rf == castlingRank (opponent pl)
+  then Result.Err (PawnAdvanceMoveError (OutOfBounds v1))
+  else Matrix.get v1 g.board
     |> M.unwrap
       (Result.Err (PawnAdvanceMoveError (OutOfBounds v1)))
       (\mp -> case mp of
@@ -88,13 +88,19 @@ pawnAdvance v0 i g =
 
 pawnLegalAdvances : V2 -> Game -> List (V2, PawnMove)
 pawnLegalAdvances v0 g =
-  R.unwrap [] (\(v, _) -> List.singleton (v, PawnAdvance v0))
-  <| pawnAdvance v0 1 g
+  pawnAdvance v0 1 g
+  |> R.unwrap [] (\(v, _) -> List.singleton (v, PawnAdvance v0))
+  
 
-pawnLegalDoubleAdvances : Int -> Game -> List (V2, PawnMove)
-pawnLegalDoubleAdvances f g =
-  R.unwrap [] (\(v, _) -> List.singleton (v, PawnDoubleAdvance f))
-  <| pawnAdvance (f, pawnsRank (gameTurn g)) 2 g
+pawnLegalDoubleAdvances : V2 -> Game -> List (V2, PawnMove)
+pawnLegalDoubleAdvances (f, r) g =
+  let pl = gameTurn g
+  in if r /= pawnsRank pl
+  then []
+  else pawnAdvance (f, r) 2 g
+    |> Result.toMaybe
+    |> Maybe.map (Tuple.first)
+    |> M.unwrap [] (\v -> List.singleton (v, PawnDoubleAdvance f))
 
 
 type PawnCaptureError
@@ -109,7 +115,10 @@ pawnCapture v0 h g =
             Left  -> player NW SW
             Right -> player NE SE
       vf = translateDiagonal d v0
-  in Matrix.get vf g.board
+      rf = Tuple.second vf
+  in if rf == castlingRank (opponent pl)
+  then (Result.Err (PawnCaptureMoveError (OutOfBounds vf)))
+  else Matrix.get vf g.board
     |> M.unwrap
       (Result.Err (PawnCaptureMoveError (OutOfBounds vf)))
       (\mp -> case mp of
@@ -168,28 +177,28 @@ pawnEnPassant h g =
                   |> M.unwrap
                     (Result.Err (PawnEnPassantMoveError PlayerHasNoKing))
                     (\vk ->
-                      let d   = pl |> case h of
-                            Left  -> player NW SW
-                            Right -> player NE SE
-                          vf = translateDiagonal d v0
-                          nb  = reposition v0 vf b
-                          kcs = inCheck pl nb vk
-                      in if List.isEmpty kcs
+                      let vc = translateStraight (horizontalToStraight h) v0
+                          vf = translateStraight (player N S pl) vc
+                          nb = reposition v0 vf b |> Matrix.set vc Nothing
+                          cs = inCheck pl nb vk
+                      in if List.isEmpty cs
                       then Result.Ok (vf, nb)
-                      else Result.Err (PawnEnPassantLeavesKingInCheck (KingInCheck kcs))
+                      else Result.Err (PawnEnPassantLeavesKingInCheck (KingInCheck cs))
                     )
                 _ -> Result.Err (PawnEnPassantNoAttacker v0)
             )
       _ -> Result.Err PawnEnPassantUnavailable
 
-pawnLegalEnPassants : Game -> List (V2, PawnMove)
-pawnLegalEnPassants g =
+pawnLegalEnPassants : Int -> Game -> List (V2, PawnMove)
+pawnLegalEnPassants f g =
   [ Left, Right ]
   |> List.filterMap
     (\d ->
       pawnEnPassant d g
       |> Result.toMaybe
-      |> Maybe.map (\(v, _) -> (v, PawnEnPassant d))
+      |> Maybe.map Tuple.first
+      |> M.filter (Tuple.first >> (==) (translateHorizontal d f))
+      |> Maybe.map (\v -> (v, PawnEnPassant d))
     )
 
 type PawnPromotionError
@@ -243,13 +252,13 @@ pawnPromotion f0 ff pr g =
           -- else Result.Err (PawnPromotionMoveError InvalidPawnForward)
           else Result.Ok (vf, b)
 
-
 pawnLegalMoves : V2 -> Game -> List (V2, PawnMove)
 pawnLegalMoves v g =
+  let f = Tuple.first v in
   [ pawnLegalAdvances v g
-  -- TODO
-  -- , pawnLegalDoubleAdvances v g
+  , pawnLegalDoubleAdvances v g
   , pawnLegalCaptures v g
+  , pawnLegalEnPassants f g
   ]
   |> List.concat
 
@@ -677,20 +686,32 @@ kingCastling c g =
       else Result.Err KingCastlingUnavailable
 
 kingCastlingTarget : Castling -> Player -> V2
-kingCastlingTarget c pl = Tuple.pair (castlingRank pl) <| case c of
+kingCastlingTarget c pl = Tuple2.pairTo (castlingRank pl) <| case c of
   KingSide  -> 6
   QueenSide -> 2
   
 
 kingLegalMoves : V2 -> Game -> List (V2, KingMove)
 kingLegalMoves v0 g =
-  directions
-  |> List.filterMap
+  let pl = gameTurn g
+  in directions
+  |> List.map
     (\d ->
       kingMove v0 d g
       |> Result.toMaybe
       |> Maybe.map (\(vf, _) -> (vf, KingMove v0 d))
     )
+  |> (::)
+      (kingCastling QueenSide g
+      |> Result.toMaybe
+      |> Maybe.map (always (kingCastlingTarget QueenSide pl, KingCastling QueenSide))
+      )
+  |> (::)
+      (kingCastling KingSide g
+      |> Result.toMaybe
+      |> Maybe.map (always (kingCastlingTarget KingSide pl, KingCastling KingSide))
+      )
+  |> List.filterMap identity
   
 type PieceMove
   = PawnPieceMove   PawnMove
@@ -699,7 +720,6 @@ type PieceMove
   | RookPieceMove   RookMove
   | QueenPieceMove  QueenMove
   | KingPieceMove   KingMove
-  | Temp_TeleportMove V2 V2
 
 type Piece = Piece Player PieceType
 piecePlayer : Piece -> Player
@@ -715,10 +735,13 @@ promotionRank : Player -> Int
 promotionRank = player 7 0
 
 enPassantRank : Player -> Int
-enPassantRank = player 5 2
+enPassantRank = player 4 3
 
 pawnsRank : Player -> Int
 pawnsRank = player 1 6
+
+pawnDoubleAdvanceRank : Player -> Int
+pawnDoubleAdvanceRank pl = 2 * (player 1 -1 pl) + pawnsRank pl
 
 type alias Board = Matrix.Matrix (Maybe Piece)
 
@@ -1042,8 +1065,6 @@ tryMove m g =
             )
 
       )
-      -- |> Result.map (\ng -> { ng | moves = m :: ng.moves })
-    Temp_TeleportMove v0 vf -> Result.Ok g
   )
   |> Result.map (\ng -> { ng | moves = m :: ng.moves })
 
@@ -1094,17 +1115,7 @@ checkStraight pl b v0 d =
         mp
       )
 
--- temp_kingLegalMoves : Player -> Game -> V2 -> List Move
--- temp_kingLegalMoves pl g v =
---   let mt = Matrix.get v g.board
---   in
---     straightDirections
---     |> List.map
---       ((\d -> translateStraight d v) >> (PieceMove v))
---     |> List.filter (\m -> tryMove m g |> R.isOk)
-
 -- TODO
--- PieceMove
 pieceLegalMoves : Game -> V2 -> Piece -> List (V2, PieceMove)
 pieceLegalMoves g v (Piece pl p) = case p of
   Pawn   -> List.map (Tuple.mapSecond PawnPieceMove)   <| pawnLegalMoves   v g

@@ -18,6 +18,9 @@ reverseHorizontal h = case h of
    Left  -> Right
    Right -> Left
 
+horizontalToStraight : HorizontalDirection -> StraightDirection
+horizontalToStraight = horizontalDirection W E
+
 type StraightDirection = N | E | S | W
 straightDirections : List StraightDirection
 straightDirections = [ N, E, S, W ]

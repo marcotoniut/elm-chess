@@ -53,7 +53,7 @@ castlingComposition =
   -- , Tile (2, 6) (Piece Black Pawn)
   , Tile (3, 6) (Piece Black Pawn)
   , Tile (4, 6) (Piece Black Pawn)
-  , Tile (5, 2) (Piece Black Pawn)
+  , Tile (5, 3) (Piece Black Pawn)
   , Tile (6, 6) (Piece Black Pawn)
   -- , Position (7, 6) (Piece Black Pawn)
   , Tile (0, 1) (Piece White Pawn)

@@ -58,6 +58,8 @@ type Msg
   | MovePiece PieceMove
   | SelectTile V2
 
+
+-- TODO PawnPromotion
 update : Msg -> Model -> Model
 update msg model = case msg of
   SelectTile  v -> R.unwrap model
@@ -84,15 +86,6 @@ update msg model = case msg of
                   if piecePlayer p == pl
                   then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
                   else { model | maybeSelected = Nothing }
-                    -- let m  = (Temp_TeleportMove s v)
-                    --     ng = tryMove m g
-                    -- in if R.isOk ng
-                    -- then
-                    --   { model | gameR = ng
-                    --           , maybeSelected = Nothing 
-                    --           , moves = m :: model.moves
-                    --   }
-                    -- else model
             Just (_, m) ->
               let ng = tryMove m g
               in
