@@ -23,29 +23,39 @@ import Theme exposing (
   )
 import Component exposing (emptyAttribute)
 
+type ChoosingPromotion
+  = ChoosingPromotionAdvance
+  | ChoosingPromotionCapture HorizontalDirection
+
+type AvailableMove
+  = AvailablePieceMove PieceMove
+  | AvailablePawnPromotionMove PawnPromotionMove
+
 -- MODEL
 type alias Model =
   { input : String
   , moves : List PieceMove
-  , gameR : Result MoveError Game
-  , maybeSelected : Maybe (V2, List (V2, PieceMove))
+  , gameState : Result PlayError Game
+  , maybeSelected : Maybe (V2, List (V2, AvailableMove))
+  , choosingPromotion : Maybe ChoosingPromotion
   }
 
 init : Model
 init =
-  { gameR = Result.Ok
-      { board = List.foldl
-          (\(Tile (x, y) p) g -> Matrix.set (x, y) (Just p) g)
-          initBoard
-          -- standardComposition
-          castlingComposition
-      , moves = []
-      , blackCastlingAvailable = castlingEnabled
-      , whiteCastlingAvailable = castlingEnabled
-      }
+  { gameState = Result.Ok
+    { board = List.foldl
+        (\(Tile (x, y) p) g -> Matrix.set (x, y) (Just p) g)
+        initBoard
+        -- standardComposition
+        castlingComposition
+    , moves = []
+    , blackCastlingAvailable = castlingEnabled
+    , whiteCastlingAvailable = castlingEnabled
+    }
   , input = ""
   , moves = []
   , maybeSelected = Nothing
+  , choosingPromotion = Nothing
   }
 
 -- MAIN
@@ -57,58 +67,128 @@ type Msg
   = ChangeInput String
   | MovePiece PieceMove
   | SelectTile V2
+  | ChoosePromotion PawnPromotion
 
 
 -- TODO PawnPromotion
 update : Msg -> Model -> Model
 update msg model = case msg of
-  SelectTile  v -> R.unwrap model
+  ChangeInput i -> { model | input = i }
+  MovePiece m   ->
+    { model | gameState = Result.andThen (play [ m ]) model.gameState
+            , moves     = m :: model.moves
+    }
+  SelectTile v -> R.unwrap model
     (\g ->
       let pl = gameTurn g
       in case model.maybeSelected of
-        Nothing     ->
-          let mp = Matrix.get v g.board |> M.join
-          in case mp of
-            Nothing -> model
-            Just p  ->
+        Nothing ->
+          Matrix.get v g.board
+          |> M.join
+          |> M.unwrap model
+            (\p  ->
               if piecePlayer p == pl
-              then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
+              then
+                { model
+                | maybeSelected
+                  = Just
+                    (v
+                    , List.concat
+                      [ pieceLegalMoves g v p
+                        |> List.map (Tuple.mapSecond AvailablePieceMove)
+                      , pawnLegalPromotionMoves v g
+                        |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
+                      ]
+                    )
+                }
               else model
+            )
         Just (s, ms) ->
           if s == v
           then { model | maybeSelected = Nothing }
-          else case L.find (\(vm, _) -> vm == v) ms of
+          else case L.find (\(x, _) -> x == v) ms of
             Nothing ->
-              let mp = Matrix.get v g.board |> M.join
-              in case mp of
+              case Matrix.get v g.board |> M.join of
                 Nothing -> { model | maybeSelected = Nothing }
                 Just p  ->
                   if piecePlayer p == pl
-                  then { model | maybeSelected = Just (v, pieceLegalMoves g v p) }
+                  then
+                    { model
+                    | maybeSelected
+                      = Just
+                        (v
+                        , List.concat
+                          [ pieceLegalMoves g v p
+                            |> List.map (Tuple.mapSecond AvailablePieceMove)
+                          , pawnLegalPromotionMoves v g
+                            |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
+                          ]
+                        )
+                    }
                   else { model | maybeSelected = Nothing }
-            Just (_, m) ->
-              let ng = tryMove m g
-              in
-                { model | gameR = ng
-                        , maybeSelected = Nothing 
-                        , moves = m :: model.moves
-                }
+            Just (_, a) ->
+              case a of
+                AvailablePieceMove m ->
+                  let ns = tryMove m g
+                  in
+                    { model
+                      | gameState = ns
+                      , moves     = m :: model.moves
+                      , maybeSelected = Nothing
+                    }
+                AvailablePawnPromotionMove m ->
+                    { model
+                      | choosingPromotion = Just <| case m of
+                        PawnPromotionAdvance _ -> ChoosingPromotionAdvance
+                        PawnPromotionCapture _ d -> ChoosingPromotionCapture d
+                    }
+    ) model.gameState
+  ChoosePromotion pr -> R.unwrap model
+    (\g ->
+      let pl = gameTurn g
+      in case model.choosingPromotion of
+        Nothing -> model
+        Just cp ->
+          case model.maybeSelected of
+            Nothing -> model
+            Just (v, ms) ->
+              let f = Tuple.first v
+              in case cp of
+                ChoosingPromotionAdvance   ->
+                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance f
+                      ns = tryMove m g
+                  in
+                    { model
+                      | gameState = ns
+                      , moves     = m :: model.moves
+                      , maybeSelected = Nothing 
+                      , choosingPromotion = Nothing
+                    }
+                ChoosingPromotionCapture d ->
+                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d
+                      ns = tryMove m g
+                  in
+                    { model
+                      | gameState = ns
+                      , moves     = m :: model.moves
+                      , maybeSelected = Nothing 
+                      , choosingPromotion = Nothing
+                    }
 
-    ) model.gameR
-  ChangeInput i -> { model | input = i }
-  MovePiece m   ->
-    { model | gameR = Result.andThen (play [ m ]) model.gameR
-            , moves = m :: model.moves
-    }
+    ) model.gameState
+    -- { model | gameR = Result.andThen (play [ m ]) model.gameR
+    --         , moves = m :: model.moves
+    -- }
 
 
 -- VIEW
 view : Model -> Html Msg
 view model =
-  div [ style "display" "flex" ]
-    [ div []
-      -- [ Result.andThen (\g -> play g model.moves) model.gameR
-      [ model.gameR
+  div
+    [ style "display" "flex" ]
+    [ div
+      []
+      [ model.gameState
         |> Result.map
           (\g -> g.board
           |> Matrix.toList
@@ -117,17 +197,18 @@ view model =
               [ style "display" "flex" ]
               (List.indexedMap
                 (\f ->
-                  let ms = model.maybeSelected
-                      v = (f, r)
-                  in tileView g.board v
-                  <| case ms of
-                    Nothing      -> TileCleared
-                    Just (s, ls) ->
-                      if v == s
-                      then TileSelected
-                      else case L.find (\(vm, _) -> vm == v) ls of
-                        Nothing     -> TileCleared
-                        Just (_, m) -> TileChecked m
+                  let v = (f, r)
+                  in model.maybeSelected
+                    |> M.unwrap
+                      TileCleared
+                      (\(s, ls) ->
+                        if v == s
+                        then TileSelected
+                        else case L.find (\(vm, _) -> vm == v) ls of
+                          Nothing     -> TileCleared
+                          Just (_, m) -> TileChecked m
+                      )
+                    |> tileView g.board v
                 ) xs
               )
             )
@@ -142,31 +223,41 @@ view model =
         |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
         |> R.merge
        ]
-    , div []
+    , div
+      []
       [ R.unwrap
           blank
           (\g -> div []
             [ text <| "Turn " ++ Debug.toString (gameTurn g)
             , br [] []
             , text <| Debug.toString g
+            , br [] []
+            , text <| Debug.toString model.input
+            , br [] []
+            , text <| Debug.toString model.maybeSelected
+            , br [] []
+            , text <| Debug.toString model.choosingPromotion
             ]
           )
-          model.gameR
+          model.gameState
       , div
         [ style "display" "grid"
         , style "grid-gap" "1em"
         , style "grid-template-columns" "repeat(3, 1fr)"
         , style "margin" "1em"
         ]
-        [ moveButton (KingPieceMove (KingCastling KingSide)) model.gameR
-        , moveButton (KingPieceMove (KingCastling QueenSide)) model.gameR
-        , moveButton (PawnPieceMove (PawnAdvance (3, 1))) model.gameR
-        , moveButton (PawnPieceMove (PawnDoubleAdvance 6)) model.gameR
-        , moveButton (PawnPieceMove (PawnEnPassant Right)) model.gameR
-        , moveButton (BishopPieceMove (BishopMove (0, 3) NE 1)) model.gameR
-        , moveButton (PawnPieceMove (PawnPromotion 2 2 QueenPromotion)) model.gameR
-        , moveButton (PawnPieceMove (PawnPromotion 2 3 KnightPromotion)) model.gameR
-        ]
+        (List.map
+          ((|>) model.gameState)
+          [ moveButton (KingPieceMove (KingCastling KingSide))
+          , moveButton (KingPieceMove (KingCastling QueenSide))
+          , moveButton (PawnPieceMove (PawnAdvance (3, 1)))
+          , moveButton (PawnPieceMove (PawnDoubleAdvance 6))
+          , moveButton (PawnPieceMove (PawnEnPassant Right))
+          , moveButton (BishopPieceMove (BishopMove (0, 3) NE 1))
+          , moveButton (PawnPieceMove (PawnPromotion QueenPromotion (PawnPromotionAdvance 2)))
+          , moveButton (PawnPieceMove (PawnPromotion KnightPromotion (PawnPromotionCapture 2 Right)))
+          ]
+        )
       , div
         [ style "margin" "1em"
         , style "border" "1px solid black"
@@ -198,7 +289,7 @@ view model =
       ]
     ]
 
-moveButton : PieceMove -> Result MoveError Game -> Html Msg
+moveButton : PieceMove -> Result PlayError Game -> Html Msg
 moveButton m rg = button
   ([
     [ onClick (MovePiece m) ]
@@ -219,7 +310,7 @@ moveText = Debug.toString >> text
 
 type TileInteraction
   = TileSelected
-  | TileChecked (PieceMove)
+  | TileChecked AvailableMove
   | TileCleared
 
 tileView : Board -> V2 -> TileInteraction -> Maybe Piece -> Html Msg

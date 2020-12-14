@@ -2,6 +2,13 @@ module Direction exposing (..)
 
 type alias V2 = (Int, Int)
 
+type Translation = Translation V2 V2
+origin : Translation -> V2
+origin (Translation o _) = o
+
+destination : Translation -> V2
+destination (Translation _ d) = d
+
 type HorizontalDirection = Left | Right
 horizontalDirection : a -> a -> HorizontalDirection -> a
 horizontalDirection x y h = case h of
@@ -9,14 +16,10 @@ horizontalDirection x y h = case h of
   Right -> y
 
 translateHorizontal : HorizontalDirection -> Int -> Int
-translateHorizontal h i = case h of
-  Left  -> i - 1
-  Right -> i + 1
+translateHorizontal h i = i + horizontalDirection -1 1 h
 
 reverseHorizontal : HorizontalDirection -> HorizontalDirection
-reverseHorizontal h = case h of
-   Left  -> Right
-   Right -> Left
+reverseHorizontal = horizontalDirection Right Left
 
 horizontalToStraight : HorizontalDirection -> StraightDirection
 horizontalToStraight = horizontalDirection W E
