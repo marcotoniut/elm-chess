@@ -22,14 +22,9 @@ import Theme exposing (
   , blackPlayerColor, checkSize
   )
 import Component exposing (emptyAttribute)
-
-type ChoosingPromotion
-  = ChoosingPromotionAdvance
-  | ChoosingPromotionCapture HorizontalDirection
-
-type AvailableMove
-  = AvailablePieceMove PieceMove
-  | AvailablePawnPromotionMove PawnPromotionMove
+import PawnPromotion as PP
+import View.Base exposing (..)
+import View.Tile exposing (..)
 
 -- MODEL
 type alias Model =
@@ -176,9 +171,6 @@ update msg model = case msg of
                     }
 
     ) model.gameState
-    -- { model | gameR = Result.andThen (play [ m ]) model.gameR
-    --         , moves = m :: model.moves
-    -- }
 
 
 -- VIEW
@@ -186,15 +178,19 @@ view : Model -> Html Msg
 view model =
   div
     [ style "display" "flex" ]
-    [ div
-      []
-      [ model.gameState
+    [ let cp = M.isJust model.choosingPromotion
+      in div
+      [ style "display" "flex"
+      , style "flex-direction" "column"
+      ]
+      ([ model.gameState
         |> Result.map
           (\g -> g.board
           |> Matrix.toList
           |> List.indexedMap
             (\r xs -> div
-              [ style "display" "flex" ]
+              [ style "display" "flex"
+              ]
               (List.indexedMap
                 (\f ->
                   let v = (f, r)
@@ -208,21 +204,51 @@ view model =
                           Nothing     -> TileCleared
                           Just (_, m) -> TileChecked m
                       )
-                    |> tileView g.board v
+                    |> tileView SelectTile g.board v
                 ) xs
               )
             )
           |> List.reverse
+          |> List.append
+            ( if cp
+              then
+                [ div
+                  [ style "position" "absolute"
+                  , style "height" "100%"
+                  , style "width" "100%"
+                  , style "backgroundColor" "black"
+                  , style "opacity" ".2"
+                  , style "z-index" "2"
+                  ]
+                  []
+                ]
+              else []
+            )
           |> div
-            [ style "borderColor" borderColor
+            [ style "position" "relative"
+            , style "borderColor" borderColor
             , style "borderStyle" "solid"
             , style "borderWidth" "35px"
-            , style "margin" "auto"
+            , if cp then style "pointer-events" "none" else emptyAttribute
             ]
           )
         |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
         |> R.merge
-       ]
+      ]
+      |> List.append
+        ( if cp
+          then
+            [ div
+              []
+              [ PP.view ChoosePromotion ]
+            ]
+          else
+            [ div
+              [ style "height" "83px" ]
+              []
+            ]
+        )
+      )
     , div
       []
       [ R.unwrap
@@ -290,9 +316,11 @@ view model =
     ]
 
 moveButton : PieceMove -> Result PlayError Game -> Html Msg
-moveButton m rg = button
-  ([
-    [ onClick (MovePiece m) ]
+moveButton m rg =
+  button
+  (
+    [
+      [ onClick (MovePiece m) ]
     , Result.andThen (play [ m ]) rg
       |> R.unpack
         (\e ->
@@ -307,71 +335,3 @@ moveButton m rg = button
 
 moveText : PieceMove -> Html a
 moveText = Debug.toString >> text 
-
-type TileInteraction
-  = TileSelected
-  | TileChecked AvailableMove
-  | TileCleared
-
-tileView : Board -> V2 -> TileInteraction -> Maybe Piece -> Html Msg
-tileView b v t mp =
-  let (i, j) = v
-      wcs = inCheck White b v
-      bcs = inCheck Black b v
-  in div
-    [ style "position" "relative"
-    , style "backgroundColor"
-      <| if (modBy 2 (i + j) == 0) then darkSpaceColor else lightSpaceColor
-    , style "width" checkSize
-    , style "height" checkSize
-    , onClick <| SelectTile v
-    ]
-    [ div
-      (List.concat
-        [
-          [ style "position" "absolute"
-          , style "bottom" "0"
-          , style "left" "0"
-          , style "right" "0"
-          , style "top" "0"
-          ]
-          , case t of
-            TileSelected  ->
-              [ style "backgroundColor" "mediumvioletred"
-              , style "opacity" ".7"
-              ]
-            TileChecked m ->
-              [ style "backgroundColor" "brown"
-              , style "opacity" ".4"
-              ]
-            TileCleared   ->
-              [ style "backgroundColor" "transparent"
-              ]
-              -- if List.isEmpty wcs
-              -- then if List.isEmpty bcs then "transparent" else "blue"
-              -- else if List.isEmpty bcs then "red"         else "magenta"
-        ]
-      )
-      []
-    , span
-      [ style "position" "absolute"
-      , style "top" "3px"
-      , style "left" "3px"
-      , style "user-select" "none"
-      ]
-      [ text <| intToAlphabet j ++ String.fromInt (i + 1) ]
-    , mp
-      |> Maybe.map
-        (\p ->
-          span
-          [ style "position" "absolute"
-          , style "left" "50%"
-          , style "top" "50%"
-          , style "transform" "translate(-50%, -50%)"
-          , style "font-size" checkSize
-          , style "user-select" "none"
-          ]
-          [ text <| pieceToIcon p ]
-        )
-      |> Maybe.withDefault blank
-    ]

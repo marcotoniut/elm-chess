@@ -9,7 +9,6 @@ import List
 import List.Extra as L
 import Tuple
 import Tuple2
-import Tuple2
 
 type Player = White | Black
 player : a -> a -> Player -> a

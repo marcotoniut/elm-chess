@@ -1,6 +1,6 @@
 module Icon exposing (..)
 
-import Chess exposing (Piece(..), Player(..), PieceType(..))
+import Chess exposing (Piece(..), PieceType(..), Player(..))
 
 pieceToIcon : Piece -> String
 pieceToIcon p =  case p of
