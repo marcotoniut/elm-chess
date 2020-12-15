@@ -63,6 +63,7 @@ type Msg
   | MovePiece PieceMove
   | SelectTile V2
   | ChoosePromotion PawnPromotion
+  | UndoPieceMove
 
 
 -- TODO PawnPromotion
@@ -70,8 +71,27 @@ update : Msg -> Model -> Model
 update msg model = case msg of
   ChangeInput i -> { model | input = i }
   MovePiece m   ->
-    { model | gameState = Result.andThen (play [ m ]) model.gameState
-            , moves     = m :: model.moves
+    { model
+    | gameState = Result.andThen (play [ m ]) model.gameState
+    , moves = m :: model.moves
+    }
+  UndoPieceMove ->
+    { model
+    | gameState
+      = Result.map
+      (\g ->
+        case g.moves of
+          [] -> g
+          (m, b) :: rs ->
+            { g
+            | board = b
+            , moves = rs
+            }
+      ) model.gameState
+    , moves
+      = model.moves
+      |> List.tail
+      |> Maybe.withDefault []
     }
   SelectTile v -> R.unwrap model
     (\g ->
@@ -251,7 +271,12 @@ view model =
       )
     , div
       []
-      [ R.unwrap
+      [ button
+        [ onClick UndoPieceMove
+        , disabled <| List.isEmpty model.moves
+        ]
+        [ text "UNDO" ]
+      , R.unwrap
           blank
           (\g -> div []
             [ text <| "Turn " ++ Debug.toString (gameTurn g)

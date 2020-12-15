@@ -163,7 +163,7 @@ pawnEnPassant h g =
       b  = g.board
   in case ml of
     Nothing -> Result.Err PawnEnPassantUnavailable
-    Just  l -> case l of
+    Just  l -> case l |> Tuple.first of
       PawnPieceMove (PawnDoubleAdvance f) ->
         let v0 = (translateHorizontal (reverseHorizontal h) f, enPassantRank pl)
         in Matrix.get v0 b
@@ -814,7 +814,7 @@ castlingDisabled =
 
 type alias Game =
   { board : Board
-  , moves : List PieceMove
+  , moves : List (PieceMove, Board)
   , whiteCastlingAvailable : CastlingAvailable
   , blackCastlingAvailable : CastlingAvailable
   }
@@ -829,7 +829,7 @@ type alias HasBlackCastlingAvailable a = { a | blackCastlingAvailable : Castling
 asBlackCastlingAvailableIn : HasBlackCastlingAvailable a -> CastlingAvailable -> HasBlackCastlingAvailable a
 asBlackCastlingAvailableIn a s = { a | blackCastlingAvailable = s }
 
-gameTurn : { g | moves : List PieceMove } -> Player
+gameTurn : { g | moves : List a } -> Player
 gameTurn g = if remainderBy 2 (List.length g.moves) == 0 then White else Black
 
 asBoardIn : { a | board : Board } -> Board -> { a | board : Board }
@@ -1121,7 +1121,7 @@ tryMove m g =
           Black -> { ng | blackCastlingAvailable = castlingDisabled }
         )
   )
-  |> Result.map (\ng -> { ng | moves = m :: ng.moves })
+  |> Result.map (\ng -> { ng | moves = (m, g.board) :: ng.moves })
   |> Result.mapError (PlayError m g)
 
 
