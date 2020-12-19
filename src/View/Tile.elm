@@ -75,7 +75,7 @@ tileView select b v t mp =
       , style "left" "3px"
       , style "user-select" "none"
       ]
-      [ text <| intToAlphabet j ++ String.fromInt (i + 1) ]
+      [ text <| showTile (j, i) ]
     , mp
       |> Maybe.map
         (\p ->

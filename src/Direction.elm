@@ -34,7 +34,6 @@ translateStraight d (f, r) = case d of
   S -> (f    , r - 1)
   W -> (f - 1, r    )
 
-
 type DiagonalDirection = NE | SE | SW | NW
 diagonalDirections : List DiagonalDirection
 diagonalDirections = [ NE, SE, SW, NW ]

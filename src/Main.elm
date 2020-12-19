@@ -1,6 +1,5 @@
 module Main exposing (..)
 
-import Alphabet exposing (intToAlphabet)
 import Array
 import Browser
 import Direction exposing (..)
