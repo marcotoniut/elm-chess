@@ -31,13 +31,13 @@ type TileInteraction
 
 tileView : (V2 -> msg) -> Board -> V2 -> TileInteraction -> Maybe Piece -> Html msg
 tileView select b v t mp =
-  let (i, j) = v
+  let (f, r) = v
       wcs = inCheck White b v
       bcs = inCheck Black b v
   in div
     [ style "position" "relative"
     , style "backgroundColor"
-      <| if (modBy 2 (i + j) == 0) then darkSpaceColor else lightSpaceColor
+      <| if (modBy 2 (f + r) == 0) then darkSpaceColor else lightSpaceColor
     , style "width" checkSize
     , style "height" checkSize
     , onClick <| select v
@@ -75,7 +75,7 @@ tileView select b v t mp =
       , style "left" "3px"
       , style "user-select" "none"
       ]
-      [ text <| showTile (j, i) ]
+      [ text <| showTile v ]
     , mp
       |> Maybe.map
         (\p ->

@@ -181,7 +181,7 @@ pawnEnPassant h g =
       b  = g.board
   in case ml of
     Nothing -> Result.Err PawnEnPassantUnavailable
-    Just  l -> case l |> Tuple.first of
+    Just  l -> case l.move of
       PawnPieceMove (PawnDoubleAdvance f) ->
         let v0 = (translateHorizontal (reverseHorizontal h) f, enPassantRank pl)
         in Matrix.get v0 b
@@ -429,10 +429,7 @@ bishopMove v0 d i g =
       )
 
 bishopMoveTarget : Int -> DiagonalDirection -> V2 -> V2
-bishopMoveTarget n d v =
-  if 0 < n
-  then bishopMoveTarget (n - 1) d (translateDiagonal d v)
-  else v
+bishopMoveTarget n d v = if 0 < n then bishopMoveTarget (n - 1) d (translateDiagonal d v) else v
 
 bishopDirectionLegalMoves : Int -> V2 -> DiagonalDirection -> Game -> List (V2, BishopMove)
 bishopDirectionLegalMoves i v0 d g =
@@ -503,9 +500,6 @@ rookMoveForward v0 d i g =
           else Result.Ok v1
       )
 
--- rookMoveTarget : V2 -> StraightDirection -> Int -> V2
--- rookMoveTarget v0 d n = List.foldl (\_ -> translateStraight d) v0 (List.range 0 (n - 1))
-
 -- TODO Accumulate Lazy Move Results ?
 rookMove : V2 -> StraightDirection -> Int -> Game -> Result RookMoveError (V2, Board)
 rookMove v0 d i g =
@@ -526,10 +520,7 @@ rookMove v0 d i g =
       )
 
 rookMoveTarget : Int -> StraightDirection -> V2 -> V2
-rookMoveTarget n d v =
-  if 0 < n
-  then (rookMoveTarget n d (translateStraight d v))
-  else v
+rookMoveTarget n d v = if 0 < n then rookMoveTarget (n - 1) d (translateStraight d v) else v
 
 rookDirectionLegalMoves : Int -> V2 -> StraightDirection -> Game -> List (V2, RookMove)
 rookDirectionLegalMoves i v0 d g =
@@ -619,10 +610,7 @@ queenMove v0 d i g =
       )
 
 queenMoveTarget : Int -> Direction -> V2 -> V2
-queenMoveTarget n d v =
-  if 0 < n
-  then (queenMoveTarget n d (translate d v))
-  else v
+queenMoveTarget n d v = if 0 < n then queenMoveTarget (n - 1) d (translate d v) else v
 
 queenDirectionLegalMoves : Int -> V2 -> Direction -> Game -> List (V2, QueenMove)
 queenDirectionLegalMoves i v0 d g =
@@ -799,7 +787,7 @@ piecePlayer (Piece p _) = p
 pieceType   : Piece -> PieceType
 pieceType   (Piece _ t) = t
 
-type Castling = KingSide | QueenSide
+type Castling = QueenSide | KingSide
 castlingRank : Player -> Int
 castlingRank = player 0 7
 
@@ -852,9 +840,16 @@ castlingDisabled =
   , queenSide = False
   }
 
+type alias Move =
+  { move : PieceMove
+  , board : Board
+  , whiteCastlingAvailable : CastlingAvailable
+  , blackCastlingAvailable : CastlingAvailable
+  }
+
 type alias Game =
   { board : Board
-  , moves : List (PieceMove, Board)
+  , moves : List Move
   , whiteCastlingAvailable : CastlingAvailable
   , blackCastlingAvailable : CastlingAvailable
   }
@@ -1174,11 +1169,34 @@ tryMove m g =
           Black -> { ng | blackCastlingAvailable = castlingDisabled }
         )
   )
-  |> Result.map (\ng -> { ng | moves = (m, g.board) :: ng.moves })
+  |> Result.map (\ng ->
+    { ng
+    | moves =
+      { move = m
+      , board = g.board
+      , whiteCastlingAvailable = g.whiteCastlingAvailable
+      , blackCastlingAvailable = g.blackCastlingAvailable
+      } :: ng.moves
+    })
   |> Result.mapError (PlayError m g)
 
 play : List PieceMove -> Game -> Result PlayError Game
 play ms g = List.foldr (\m -> Result.andThen (tryMove m)) (Result.Ok g) ms
+
+undoMove : Game -> Maybe (Move, Game)
+undoMove s =
+  L.uncons s.moves
+  |> Maybe.map
+  (\(m, ms) ->
+    (m
+    , { s
+      | moves = ms
+      , board = m.board
+      , whiteCastlingAvailable = m.whiteCastlingAvailable
+      , blackCastlingAvailable = m.blackCastlingAvailable
+      }
+    )
+  )
 
 checkDiagonal : Player -> Board -> V2 -> DiagonalDirection -> List (V2, Maybe Piece)
 checkDiagonal pl b v0 d =
@@ -1253,4 +1271,4 @@ gameStatus pl g
     )
 
 showTile : (Int, Int) -> String
-showTile (f, r) = intToAlphabet f ++ String.fromInt (r + 1)
+showTile (f, r) = String.fromInt (r + 1) ++ intToAlphabet f

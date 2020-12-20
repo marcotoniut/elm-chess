@@ -4,24 +4,24 @@ import Array
 import Browser
 import Direction exposing (..)
 import Chess exposing (..)
-import Component exposing (blank)
+import Chess.AlgebraicNotation exposing (..)
+import Component exposing (blank, emptyAttribute)
 import Composition exposing (standardComposition, castlingComposition)
 import Debug
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
-import Matrix
 import List.Extra as L
+import Matrix
 import Maybe.Extra as M
+import PawnPromotion as PP
 import Result.Extra as R
 import Theme exposing (
     darkSpaceColor, darkSpaceColor
   , lightSpaceColor, borderColor, whitePlayerColor
   , blackPlayerColor, checkSize
   )
-import Component exposing (emptyAttribute)
-import PawnPromotion as PP
 import View.Base exposing (..)
 import View.Tile exposing (..)
 
@@ -76,17 +76,7 @@ update msg model = case msg of
     }
   UndoPieceMove ->
     { model
-    | gameState
-      = Result.map
-      (\g ->
-        case g.moves of
-          [] -> g
-          (m, b) :: rs ->
-            { g
-            | board = b
-            , moves = rs
-            }
-      ) model.gameState
+    | gameState = Result.map (\g -> M.unwrap g Tuple.second (undoMove g)) model.gameState
     , moves
       = model.moves
       |> List.tail
@@ -143,19 +133,17 @@ update msg model = case msg of
             Just (_, a) ->
               case a of
                 AvailablePieceMove m ->
-                  let ns = tryMove m g
-                  in
-                    { model
-                      | gameState = ns
-                      , moves     = m :: model.moves
-                      , maybeSelected = Nothing
-                    }
+                  { model
+                  | gameState = tryMove m g
+                  , moves     = m :: model.moves
+                  , maybeSelected = Nothing
+                  }
                 AvailablePawnPromotionMove m ->
-                    { model
-                      | choosingPromotion = Just <| case m of
-                        PawnPromotionAdvance _ -> ChoosingPromotionAdvance
-                        PawnPromotionCapture _ d -> ChoosingPromotionCapture d
-                    }
+                  { model
+                  | choosingPromotion = Just <| case m of
+                    PawnPromotionAdvance _ -> ChoosingPromotionAdvance
+                    PawnPromotionCapture _ d -> ChoosingPromotionCapture d
+                  }
     ) model.gameState
   ChoosePromotion pr -> R.unwrap model
     (\g ->
@@ -173,20 +161,20 @@ update msg model = case msg of
                       ns = tryMove m g
                   in
                     { model
-                      | gameState = ns
-                      , moves     = m :: model.moves
-                      , maybeSelected = Nothing 
-                      , choosingPromotion = Nothing
+                    | gameState = ns
+                    , moves     = m :: model.moves
+                    , maybeSelected = Nothing 
+                    , choosingPromotion = Nothing
                     }
                 ChoosingPromotionCapture d ->
                   let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d
                       ns = tryMove m g
                   in
                     { model
-                      | gameState = ns
-                      , moves     = m :: model.moves
-                      , maybeSelected = Nothing 
-                      , choosingPromotion = Nothing
+                    | gameState = ns
+                    , moves     = m :: model.moves
+                    , maybeSelected = Nothing 
+                    , choosingPromotion = Nothing
                     }
 
     ) model.gameState
@@ -245,9 +233,9 @@ view model =
             )
           |> div
             [ style "position" "relative"
-            , style "borderColor" borderColor
-            , style "borderStyle" "solid"
-            , style "borderWidth" "35px"
+            , style "border-color" borderColor
+            , style "border-style" "solid"
+            , style "border-width" "35px"
             , if cp then style "pointer-events" "none" else emptyAttribute
             ]
           )
@@ -287,6 +275,26 @@ view model =
             , text <| Debug.toString model.maybeSelected
             , br [] []
             , text <| Debug.toString model.choosingPromotion
+            , div
+              [ style "margin" "1em"
+              , style "border" "1px solid black"
+              ]
+              [ gameAN g
+              |> R.unwrap
+                blank
+                (List.indexedMap
+                  (\i x ->
+                    li
+                    [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
+                    [ text x ]
+                  )
+                >> ul
+                  [ style "list-style" "none"
+                  , style "margin" "0"
+                  , style "min-height" "100px"
+                  , style "padding" "0"
+                  ]
+                )]
             ]
           )
           model.gameState
@@ -316,14 +324,13 @@ view model =
           [ onInput ChangeInput
           , style "backgroundColor" "lightyellow"
           , style "border" "none"
+          , style "border-bottom" "1px solid black"
           , style "border-radius" "0"
           , style "box-sizing" "border-box"
-          , style "border-bottom" "1px solid black"
           , style "width" "100%"
           ] []
         , model.moves
           |> List.indexedMap
-            -- (\i m -> toAN b pl m
             (\i ->
               moveText
               >> List.singleton
@@ -331,9 +338,9 @@ view model =
             )
           |> ul
             [ style "list-style" "none"
+            , style "margin" "0"
             , style "min-height" "100px"
             , style "padding" "0"
-            , style "margin" "0"
             ]
         ]
       ]
@@ -357,5 +364,8 @@ moveButton m rg =
   )
   [ moveText m ]
 
+-- moveListItem : PieceMove -> undoMove g
+
 moveText : PieceMove -> Html a
 moveText = Debug.toString >> text 
+-- moveText = toAN >> text
