@@ -6,6 +6,8 @@ import Direction exposing (..)
 import Maybe.Extra as M
 import Result.Extra as R
 import Matrix
+import Maybe
+import Alphabet exposing (intFromAlphabetChar)
 
 type ToANError
   = ToANPlayError PlayError
@@ -19,8 +21,20 @@ pieceFragment p = case p of
   Queen  -> "Q"
   King   -> "K"
 
+pieceFragmentFromChar : Char -> Maybe PieceType
+pieceFragmentFromChar c = case c of
+  'N' -> Just Knight
+  'B' -> Just Bishop
+  'R' -> Just Rook
+  'Q' -> Just Queen
+  'K' -> Just King
+  _   -> Nothing
+
+captureFragmentChar : Char
+captureFragmentChar = 'x'
+
 captureFragment : String
-captureFragment = "x"
+captureFragment = String.fromChar captureFragmentChar
 
 showCaptured : V2 -> Matrix.Matrix (Maybe a) -> String
 showCaptured v b = Matrix.get v b |> M.join |> M.unwrap "" (always captureFragment)
@@ -110,4 +124,55 @@ toAN m g =
 gameAN : Game -> Result ToANError (List String)
 gameAN = undoMove >> M.unwrap (Result.Ok []) (\(m, g) -> R.andMap (gameAN g) (Result.map (::) (toAN m.move g)))
 
--- parseAN : Board -> String -> Either String Move
+type ANError = InvalidAN | ANAmbiguousMove
+
+parseAN : Player -> Board -> String -> Result ANError PieceMove
+parseAN pl b an = case an of
+  "O-O"   -> Result.Ok <| KingPieceMove <| KingCastling KingSide
+  "O-O-O" -> Result.Ok <| KingPieceMove <| KingCastling QueenSide
+  d ->
+    let q  = String.reverse d
+        mc = String.uncons q
+    in case mc of
+      Nothing -> Result.Err InvalidAN
+      Just (c, s) -> case pieceFragmentFromChar c |> Maybe.andThen promotionFromPieceType of
+        Just pr -> pluckTileReverseAN s
+          |> Maybe.andThen
+            (\((ff, rf), t) ->
+              if 0 == String.length t
+              then Just <| PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance ff
+              else String.uncons t
+                |> M.filter (Tuple.first >> (==) captureFragmentChar)
+                |> Maybe.andThen (Tuple.second >> String.uncons)
+                |> M.filter (Tuple.second >> (==) "")
+                |> Maybe.andThen (Tuple.first >> intFromAlphabetChar)
+                |> Maybe.andThen
+                  (\f0 ->
+                    if f0 - 1 == ff
+                    then Just (f0, Right)
+                    else if f0 + 1 == ff
+                    then Just (f0, Left)
+                    else Nothing
+                  )
+                |> Maybe.map
+                (\(f0, hd) -> PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f0 hd)
+            )
+          |> Result.fromMaybe InvalidAN
+        Nothing -> Result.Err InvalidAN
+          -- let intFromAlphabetChar r
+
+
+pluckTileReverseAN : String -> Maybe (V2, String)
+pluckTileReverseAN = String.uncons
+  >> Maybe.andThen
+    (\(rc, s) -> String.uncons s
+    |> Maybe.andThen
+      (\(fc, u) -> rc
+        |> String.fromChar
+        |> String.toInt
+        |> Maybe.andThen
+          (\r -> intFromAlphabetChar fc
+            |> Maybe.map (\f -> ((f, r), u))
+          )
+      )
+    )

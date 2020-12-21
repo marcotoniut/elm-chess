@@ -40,8 +40,8 @@ init =
     { board = List.foldl
         (\(Tile (x, y) p) g -> Matrix.set (x, y) (Just p) g)
         initBoard
-        -- standardComposition
-        castlingComposition
+        standardComposition
+        -- castlingComposition
     , moves = []
     , blackCastlingAvailable = castlingEnabled
     , whiteCastlingAvailable = castlingEnabled
@@ -221,10 +221,10 @@ view model =
               then
                 [ div
                   [ style "position" "absolute"
-                  , style "height" "100%"
-                  , style "width" "100%"
                   , style "backgroundColor" "black"
+                  , style "height" "100%"
                   , style "opacity" ".2"
+                  , style "width" "100%"
                   , style "z-index" "2"
                   ]
                   []
@@ -267,14 +267,10 @@ view model =
           blank
           (\g -> div []
             [ text <| "Turn " ++ Debug.toString (gameTurn g)
-            , br [] []
-            , text <| Debug.toString g
-            , br [] []
-            , text <| Debug.toString model.input
-            , br [] []
-            , text <| Debug.toString model.maybeSelected
-            , br [] []
-            , text <| Debug.toString model.choosingPromotion
+            -- , br [] []
+            -- , text <| Debug.toString g
+            -- , br [] []
+            -- , text <| Debug.toString model.input
             , div
               [ style "margin" "1em"
               , style "border" "1px solid black"

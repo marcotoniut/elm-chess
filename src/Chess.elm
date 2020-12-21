@@ -31,6 +31,14 @@ promote p = case p of
   BishopPromotion -> Bishop
   KnightPromotion -> Knight
 
+promotionFromPieceType : PieceType -> Maybe PawnPromotion
+promotionFromPieceType p = case p of
+  Queen   -> Just QueenPromotion
+  Rook    -> Just RookPromotion
+  Bishop  -> Just BishopPromotion
+  Knight  -> Just KnightPromotion
+  _       -> Nothing
+
 type PawnPromotionMove
   = PawnPromotionAdvance Int
   | PawnPromotionCapture Int HorizontalDirection

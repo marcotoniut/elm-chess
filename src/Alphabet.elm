@@ -1,6 +1,7 @@
 module Alphabet exposing (..)
 
 import Array
+import List.Extra as L
 
 alphabet : List Char
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
@@ -20,3 +21,6 @@ intToAlphabet n =
         |> Maybe.map String.fromChar
         |> Maybe.withDefault ""
   in l ++ if d == 0 then "" else intToAlphabet d
+
+intFromAlphabetChar : Char -> Maybe Int
+intFromAlphabetChar c = L.elemIndex c alphabet
