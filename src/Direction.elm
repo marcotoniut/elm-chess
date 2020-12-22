@@ -66,3 +66,35 @@ translate : Direction -> V2 -> V2
 translate d = case d of
   StraightDirection sd -> translateStraight sd
   DiagonalDirection dd -> translateDiagonal dd
+
+straightDiff : V2 -> V2 -> Maybe (StraightDirection, Int)
+straightDiff (x0, y0) (x1, y1) =
+  let dx = x1 - x0
+      dy = y1 - y0
+  in if dx == 0 && dy /= 0
+  then Just <| if dy < 0
+    then (S, Basics.abs dy)
+    else (N, Basics.abs dy)
+  else if dy == 0 && dx /= 0
+  then Just <| if dx < 0
+    then (W, Basics.abs dx)
+    else (E, Basics.abs dx)
+  else Nothing
+
+diagonalDiff : V2 -> V2 -> Maybe (DiagonalDirection, Int)
+diagonalDiff (x0, y0) (x1, y1) =
+  let dx = x1 - x0
+      dy = y1 - y0
+      n  = Basics.abs dx
+  in if n == 0 || n /= Basics.abs dy
+  then Nothing
+  else Just <|
+    if dx < 0
+    then
+      if dy < 0
+      then (SW, n)
+      else (NE, n)
+    else
+      if dy < 0
+      then (NW, n)
+      else (SE, n)

@@ -104,7 +104,7 @@ toAN m g =
           ++ showTile vf
       QueenPieceMove (QueenMove v0 d i) ->
         let vf = queenMoveTarget i d v0
-            qc = inQueensCheck (opponent pl) g.board vf
+            qc = inQueenCheck (opponent pl) g.board vf
         in Result.Ok
           <| pieceFragment Queen
           ++ (if List.isEmpty qc then "" else showTile v0)
@@ -124,24 +124,24 @@ toAN m g =
 gameAN : Game -> Result ToANError (List String)
 gameAN = undoMove >> M.unwrap (Result.Ok []) (\(m, g) -> R.andMap (gameAN g) (Result.map (::) (toAN m.move g)))
 
+-- TODO Expand InvalidAN
 type ANError = InvalidAN | ANAmbiguousMove
 
 parseAN : Player -> Board -> String -> Result ANError PieceMove
 parseAN pl b an = case an of
   "O-O"   -> Result.Ok <| KingPieceMove <| KingCastling KingSide
   "O-O-O" -> Result.Ok <| KingPieceMove <| KingCastling QueenSide
-  d ->
-    let q  = String.reverse d
-        mc = String.uncons q
-    in case mc of
+  an0 ->
+    case String.uncons (String.reverse an0) of
       Nothing -> Result.Err InvalidAN
-      Just (c, s) -> case pieceFragmentFromChar c |> Maybe.andThen promotionFromPieceType of
-        Just pr -> pluckTileReverseAN s
+      Just (c, an1) -> case pieceFragmentFromChar c |> Maybe.andThen promotionFromPieceType of
+        Just pr ->
+          pluckTileReverseAN an1
           |> Maybe.andThen
-            (\((ff, rf), t) ->
-              if 0 == String.length t
+            (\((ff, rf), an2) ->
+              if 0 == String.length an2
               then Just <| PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance ff
-              else String.uncons t
+              else String.uncons an2
                 |> M.filter (Tuple.first >> (==) captureFragmentChar)
                 |> Maybe.andThen (Tuple.second >> String.uncons)
                 |> M.filter (Tuple.second >> (==) "")
@@ -158,16 +158,65 @@ parseAN pl b an = case an of
                 (\(f0, hd) -> PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f0 hd)
             )
           |> Result.fromMaybe InvalidAN
-        Nothing -> Result.Err InvalidAN
-          -- let intFromAlphabetChar r
+        Nothing ->
+          pluckTileReverseAN an0
+          |> Maybe.andThen
+            (\(vf, an2) ->
+              let (ff, rf) = vf
+              in String.uncons an2
+              |> M.unwrap
+                (Just <| PawnPieceMove <| PawnAdvance vf)
+                (\(cx, an3) ->
+                  let capture = cx == captureFragmentChar
+                      an4 = String.reverse (if capture then an2 else an3)
+                  in String.uncons an4
+                    |> Maybe.andThen
+                      (\(pc, an5) ->
+                        let l5 = String.length an5
+                        in if l5 /= 0 && l5 /= 2
+                        then Nothing
+                        else pieceFragmentFromChar pc
+                        |> Maybe.andThen
+                          (\p ->
+                            case String.length an5 of
+                              0 -> case p of
+                                Knight ->
+                                  case inKnightCheck pl b vf of
+                                    -- CHECK PieceType ?
+                                    ((sd, hd), Tile v0 pt) :: [] -> Just <| KnightPieceMove <| KnightMove v0 sd hd
+                                    _ -> Nothing
+                                Bishop ->
+                                  case inBishopCheck pl b vf of
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| BishopPieceMove <| BishopMove v0 d n
+                                    _ -> Nothing
+                                Rook   ->
+                                  case inRookCheck pl b vf of
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| RookPieceMove <| RookMove v0 d n
+                                    _ -> Nothing
+                                Queen  ->
+                                  case inQueenCheck pl b vf of
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| QueenPieceMove <| QueenMove v0 d n
+                                    _ -> Nothing
+                                King   ->
+                                  case inKingCheck pl b vf of
+                                    (d, Tile v0 pt) :: [] -> Just <| KingPieceMove <| KingMove v0 d
+                                    _ -> Nothing
+                                _ -> Nothing
+                              -- 2 -> pluckTileAN an5 |> Maybe.map Tuple.first
+                              2 -> Nothing
+                              _ -> Nothing
+                          )
+                      )
+                )
+            )
+          |> Result.fromMaybe InvalidAN
 
-
-pluckTileReverseAN : String -> Maybe (V2, String)
-pluckTileReverseAN = String.uncons
+pluckTileAN : String -> Maybe (V2, String)
+pluckTileAN = String.uncons
   >> Maybe.andThen
-    (\(rc, s) -> String.uncons s
+    (\(fc, s) -> String.uncons s
     |> Maybe.andThen
-      (\(fc, u) -> rc
+      (\(rc, u) -> rc
         |> String.fromChar
         |> String.toInt
         |> Maybe.andThen
@@ -176,3 +225,6 @@ pluckTileReverseAN = String.uncons
           )
       )
     )
+
+pluckTileReverseAN : String -> Maybe (V2, String)
+pluckTileReverseAN = String.reverse >> pluckTileAN
