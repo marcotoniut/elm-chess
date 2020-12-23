@@ -24,6 +24,7 @@ import Theme exposing (
   )
 import View.Base exposing (..)
 import View.Tile exposing (..)
+import View.Debug.MoveCommands exposing (..)
 
 -- MODEL
 type alias Model =
@@ -294,24 +295,7 @@ view model =
             ]
           )
           model.gameState
-      , div
-        [ style "display" "grid"
-        , style "grid-gap" "1em"
-        , style "grid-template-columns" "repeat(3, 1fr)"
-        , style "margin" "1em"
-        ]
-        (List.map
-          ((|>) model.gameState)
-          [ moveButton (KingPieceMove (KingCastling KingSide))
-          , moveButton (KingPieceMove (KingCastling QueenSide))
-          , moveButton (PawnPieceMove (PawnAdvance (3, 1)))
-          , moveButton (PawnPieceMove (PawnDoubleAdvance 6))
-          , moveButton (PawnPieceMove (PawnEnPassant Right))
-          , moveButton (BishopPieceMove (BishopMove (0, 3) NE 1))
-          , moveButton (PawnPieceMove (PawnPromotion QueenPromotion (PawnPromotionAdvance 2)))
-          , moveButton (PawnPieceMove (PawnPromotion KnightPromotion (PawnPromotionCapture 2 Right)))
-          ]
-        )
+      , moveCommands MovePiece model.gameState
       , div
         [ style "margin" "1em"
         , style "border" "1px solid black"
@@ -341,27 +325,3 @@ view model =
         ]
       ]
     ]
-
-moveButton : PieceMove -> Result PlayError Game -> Html Msg
-moveButton m rg =
-  button
-  (
-    [
-      [ onClick (MovePiece m) ]
-    , Result.andThen (play [ m ]) rg
-      |> R.unpack
-        (\e ->
-          [ disabled True
-          , title <| Debug.toString e
-          ]
-        )
-        (always [])
-    ] |> List.concat
-  )
-  [ moveText m ]
-
--- moveListItem : PieceMove -> undoMove g
-
-moveText : PieceMove -> Html a
-moveText = Debug.toString >> text 
--- moveText = toAN >> text

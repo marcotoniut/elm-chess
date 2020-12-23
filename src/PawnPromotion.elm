@@ -12,7 +12,7 @@ import Theme exposing (
   , blackPlayerColor, checkSize
   )
 
-itemView : (PawnPromotion -> msg) -> PawnPromotion -> Html msg
+itemView : (PawnPromotion -> m) -> PawnPromotion -> Html m
 itemView choose pr =
   li
   [ onClick <| choose pr
@@ -21,7 +21,7 @@ itemView choose pr =
   ]
   [ text <| pieceToIcon <| Piece White <| promote pr ]
 
-view : (PawnPromotion -> msg) -> Html msg
+view : (PawnPromotion -> m) -> Html m
 view choose =
   ul
   [ style "display" "flex"

@@ -180,61 +180,59 @@ parseAN pl b an = case an of
                         else pieceFragmentFromChar pc
                         |> Maybe.andThen
                           (\p ->
-                            case String.length an5 of
-                              0 -> case p of
-                                Knight ->
-                                  case inKnightCheck pl b vf of
-                                    -- CHECK PieceType ?
-                                    ((sd, hd), Tile v0 pt) :: [] -> Just <| KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd
-                                    _ -> Nothing
-                                Bishop ->
-                                  case inBishopCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n
-                                    _ -> Nothing
-                                Rook   ->
-                                  case inRookCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| RookPieceMove <| RookMove v0 (oppositeStraight d) n
-                                    _ -> Nothing
-                                Queen  ->
-                                  case inQueenCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| QueenPieceMove <| QueenMove v0 (opposite d) n
-                                    _ -> Nothing
-                                King   ->
-                                  case inKingCheck pl b vf of
-                                    (d, Tile v0 pt) :: [] -> Just <| KingPieceMove <| KingMove v0 (opposite d)
-                                    _ -> Nothing
+                            if l5 == 0
+                            then case p of
+                              Knight -> case inKnightCheck pl b vf of
+                                  -- CHECK PieceType ?
+                                ((sd, hd), Tile v0 pt) :: [] -> Just <| KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd
                                 _ -> Nothing
-                              2 -> pluckTileAN an5
-                                |> Maybe.map Tuple.first
-                                |> Maybe.andThen
-                                  (\v0 -> case p of
-                                    Knight ->
-                                      case inKnightCheck pl b vf of
-                                        [] -> Nothing
-                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
-                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Knight))) xs
-                                          |> Maybe.map (Tuple.first >> (\(sd, hd) -> KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd))
-                                    Bishop ->
-                                      case inBishopCheck pl b vf of
-                                        [] -> Nothing
-                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
-                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Bishop))) xs
-                                          |> Maybe.map (Tuple.first >> (\(d, n) -> BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n))
-                                    Rook   ->
-                                      case inRookCheck pl b vf of
-                                        [] -> Nothing
-                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
-                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Rook))) xs
-                                          |> Maybe.map (Tuple.first >> (\(d, n) -> RookPieceMove <| RookMove v0 (oppositeStraight d) n))
-                                    Queen  ->
-                                      case inQueenCheck pl b vf of
-                                        [] -> Nothing
-                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
-                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Queen))) xs
-                                          |> Maybe.map (Tuple.first >> (\(d, n) -> QueenPieceMove <| QueenMove v0 (opposite d) n))
-                                    _ -> Nothing
-                                  )
+                              Bishop -> case inBishopCheck pl b vf of
+                                ((d, n),   Tile v0 pt) :: [] -> Just <| BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n
+                                _ -> Nothing
+                              Rook   -> case inRookCheck pl b vf of
+                                ((d, n),   Tile v0 pt) :: [] -> Just <| RookPieceMove   <| RookMove   v0 (oppositeStraight d) n
+                                _ -> Nothing
+                              Queen  -> case inQueenCheck pl b vf of
+                                ((d, n),   Tile v0 pt) :: [] -> Just <| QueenPieceMove  <| QueenMove  v0 (opposite d) n
+                                _ -> Nothing
+                              King   -> case inKingCheck pl b vf of
+                                (d,        Tile v0 pt) :: [] -> Just <| KingPieceMove   <| KingMove   v0 (opposite d)
+                                _ -> Nothing
                               _ -> Nothing
+                            else pluckTileAN an5
+                              |> Maybe.map Tuple.first
+                              |> Maybe.andThen
+                                (\v0 -> case p of
+                                  Knight ->
+                                    case inKnightCheck pl b vf of
+                                      []      -> Nothing
+                                      _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                      xs      ->
+                                        L.find (Tuple.second >> (==) (Tile v0 (Piece pl Knight))) xs
+                                        |> Maybe.map (Tuple.first >> (\(sd, hd) -> KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd))
+                                  Bishop ->
+                                    case inBishopCheck pl b vf of
+                                      []      -> Nothing
+                                      _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                      xs      ->
+                                        L.find (Tuple.second >> (==) (Tile v0 (Piece pl Bishop))) xs
+                                        |> Maybe.map (Tuple.first >> (\(d, n) -> BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n))
+                                  Rook   ->
+                                    case inRookCheck pl b vf of
+                                      []      -> Nothing
+                                      _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                      xs      ->
+                                        L.find (Tuple.second >> (==) (Tile v0 (Piece pl Rook))) xs
+                                        |> Maybe.map (Tuple.first >> (\(d, n) -> RookPieceMove <| RookMove v0 (oppositeStraight d) n))
+                                  Queen  ->
+                                    case inQueenCheck pl b vf of
+                                      []      -> Nothing
+                                      _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                      xs      ->
+                                        L.find (Tuple.second >> (==) (Tile v0 (Piece pl Queen))) xs
+                                        |> Maybe.map (Tuple.first >> (\(d, n) -> QueenPieceMove <| QueenMove v0 (opposite d) n))
+                                  _ -> Nothing
+                                )
                           )
                       )
                 )
