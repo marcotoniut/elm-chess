@@ -15,7 +15,6 @@ import Icon exposing (pieceToIcon)
 import List.Extra as L
 import Matrix
 import Maybe.Extra as M
-import PawnPromotion as PP
 import Result.Extra as R
 import Theme exposing (
     darkSpaceColor, darkSpaceColor
@@ -25,6 +24,7 @@ import Theme exposing (
 import View.Base exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
+import View.PawnPromotion as PP
 
 -- MODEL
 type alias Model =

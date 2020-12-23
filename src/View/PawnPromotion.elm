@@ -1,4 +1,4 @@
-module PawnPromotion exposing (..)
+module View.PawnPromotion exposing (..)
 
 import Browser
 import Chess exposing (..)

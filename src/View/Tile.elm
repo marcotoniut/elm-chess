@@ -1,22 +1,12 @@
 module View.Tile exposing (..)
 
-import Alphabet exposing (intToAlphabet)
-import Array
-import Browser
 import Chess exposing (..)
 import Component exposing (blank, emptyAttribute)
-import Composition exposing (standardComposition, castlingComposition)
-import Debug
 import Direction exposing (..)
 import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
-import List.Extra as L
-import Matrix
-import Maybe.Extra as M
-import PawnPromotion as PP
-import Result.Extra as R
 import Theme exposing (
     darkSpaceColor, darkSpaceColor
   , lightSpaceColor, borderColor, whitePlayerColor
@@ -29,7 +19,7 @@ type TileInteraction
   | TileChecked AvailableMove
   | TileCleared
 
-tileView : (V2 -> msg) -> Board -> V2 -> TileInteraction -> Maybe Piece -> Html msg
+tileView : (V2 -> m) -> Board -> V2 -> TileInteraction -> Maybe Piece -> Html m
 tileView select b v t mp =
   let (f, r) = v
       wcs = inCheck White b v
@@ -44,28 +34,24 @@ tileView select b v t mp =
     ]
     [ div
       (List.concat
-        [
-          [ style "position" "absolute"
+        [ [ style "position" "absolute"
           , style "bottom" "0"
           , style "left" "0"
           , style "right" "0"
           , style "top" "0"
           ]
-          , case t of
-            TileSelected  ->
-              [ style "backgroundColor" "mediumvioletred"
-              , style "opacity" ".7"
-              ]
-            TileChecked m ->
-              [ style "backgroundColor" "brown"
-              , style "opacity" ".4"
-              ]
-            TileCleared   ->
-              [ style "backgroundColor" "transparent"
-              ]
-              -- if List.isEmpty wcs
-              -- then if List.isEmpty bcs then "transparent" else "blue"
-              -- else if List.isEmpty bcs then "red"         else "magenta"
+        , case t of
+          TileSelected  ->
+            [ style "backgroundColor" "mediumvioletred"
+            , style "opacity" ".7"
+            ]
+          TileChecked m ->
+            [ style "backgroundColor" "brown"
+            , style "opacity" ".4"
+            ]
+          TileCleared   ->
+            [ style "backgroundColor" "transparent"
+            ]
         ]
       )
       []
