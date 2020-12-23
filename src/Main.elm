@@ -5,8 +5,8 @@ import Browser
 import Direction exposing (..)
 import Chess exposing (..)
 import Chess.AlgebraicNotation exposing (..)
+import Chess.Composition exposing (standardComposition, castlingComposition)
 import Component exposing (blank, emptyAttribute)
-import Composition exposing (standardComposition, castlingComposition)
 import Debug
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html exposing (Html, button, br, node, div, ul, li, span, text, input)

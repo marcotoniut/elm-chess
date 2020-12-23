@@ -1,4 +1,4 @@
-module Composition exposing (..)
+module Chess.Composition exposing (..)
 
 import Chess exposing (Tile(..), Piece(..), PieceType(..), Player(..))
 
