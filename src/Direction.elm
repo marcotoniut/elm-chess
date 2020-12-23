@@ -34,6 +34,13 @@ translateStraight d (f, r) = case d of
   S -> (f    , r - 1)
   W -> (f - 1, r    )
 
+oppositeStraight : StraightDirection -> StraightDirection
+oppositeStraight d = case d of
+  N -> S
+  S -> N
+  W -> E
+  E -> W
+
 type DiagonalDirection = NE | SE | SW | NW
 diagonalDirections : List DiagonalDirection
 diagonalDirections = [ NE, SE, SW, NW ]
@@ -44,9 +51,21 @@ translateDiagonal d (f, r) = case d of
   SW -> (f - 1, r - 1)
   NW -> (f - 1, r + 1)
 
+oppositeDiagonal : DiagonalDirection -> DiagonalDirection
+oppositeDiagonal d = case d of
+  NE -> SW
+  SE -> NW
+  NW -> SE
+  SW -> NW
+
 type Direction
   = StraightDirection StraightDirection
   | DiagonalDirection DiagonalDirection
+
+opposite : Direction -> Direction
+opposite d = case d of
+  StraightDirection sd -> StraightDirection <| oppositeStraight sd
+  DiagonalDirection dd -> DiagonalDirection <| oppositeDiagonal dd
 
 turnDiagonal : StraightDirection -> HorizontalDirection -> DiagonalDirection
 turnDiagonal d = case d of

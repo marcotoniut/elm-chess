@@ -94,7 +94,7 @@ pawnAdvance v0 f g =
         (Result.Err (PawnAdvanceMoveError PlayerHasNoKing))
         (\vk ->
           let nb  = reposition v0 vf g.board
-              kcs = inCheck pl nb vk
+              kcs = inCheck (opponent pl) nb vk
           in if List.isEmpty kcs
           then Result.Ok (vf, nb)
           else Result.Err (PawnAdvanceLeavesKingInCheck (KingInCheck kcs))
@@ -151,7 +151,7 @@ pawnCapture v0 h g =
               (Result.Err (PawnCaptureMoveError PlayerHasNoKing))
               (\vk ->
                 let nb  = reposition v0 vf g.board
-                    kcs = inCheck pl nb vk
+                    kcs = inCheck (opponent pl) nb vk
                 in if List.isEmpty kcs
                 then Result.Ok (vf, nb)
                 else Result.Err (PawnCaptureLeavesKingInCheck (KingInCheck kcs))
@@ -209,7 +209,7 @@ pawnEnPassant h g =
                       let vc = translateStraight (horizontalToStraight h) v0
                           vf = translateStraight (playerDirection pl) vc
                           nb = reposition v0 vf b |> Matrix.set vc Nothing
-                          cs = inCheck pl nb vk
+                          cs = inCheck (opponent pl) nb vk
                       in if List.isEmpty cs
                       then Result.Ok (vf, nb)
                       else Result.Err (PawnEnPassantLeavesKingInCheck (KingInCheck cs))
@@ -352,7 +352,7 @@ knightMove v0 sd hd g =
         (\mp -> case mp of
           Nothing ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vk
+                kcs = inCheck (opponent pl) nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
@@ -361,7 +361,7 @@ knightMove v0 sd hd g =
             then Result.Err (KnightMoveMoveError (PathBlocked vf))
             else
               let nb  = reposition v0 vf g.board
-                  kcs = inCheck pl nb vk
+                  kcs = inCheck (opponent pl) nb vk
               in if List.isEmpty kcs
               then Result.Ok (vf, nb)
               else Result.Err (KnightMoveLeavesKingInCheck (KingInCheck kcs))
@@ -429,7 +429,7 @@ bishopMove v0 d i g =
           (Result.Err (BishopMoveMoveError PlayerHasNoKing))
           (\vk ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vk
+                kcs = inCheck (opponent pl) nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (BishopMoveLeavesKingInCheck (KingInCheck kcs))
@@ -454,7 +454,7 @@ bishopDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb vk
+                  kcs = inCheck (opponent pl) nb vk
                   rs  = bishopDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, BishopMove v0 d j) :: rs
@@ -464,7 +464,7 @@ bishopDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb vk
+                    kcs = inCheck (opponent pl) nb vk
                 in if List.isEmpty kcs
                 then [ (v1, BishopMove v0 d j) ]
                 else []
@@ -520,7 +520,7 @@ rookMove v0 d i g =
           (Result.Err (RookMoveMoveError PlayerHasNoKing))
           (\vk ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vk
+                kcs = inCheck (opponent pl) nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (RookMoveLeavesKingInCheck (KingInCheck kcs))
@@ -545,7 +545,7 @@ rookDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb vk
+                  kcs = inCheck (opponent pl) nb vk
                   rs  = rookDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, RookMove v0 d j) :: rs
@@ -555,7 +555,7 @@ rookDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb vk
+                    kcs = inCheck (opponent pl) nb vk
                 in if List.isEmpty kcs
                 then [ (v1, RookMove v0 d j) ]
                 else []
@@ -610,7 +610,7 @@ queenMove v0 d i g =
           (Result.Err (QueenMoveMoveError PlayerHasNoKing))
           (\vk ->
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vk
+                kcs = inCheck (opponent pl) nb vk
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (QueenMoveLeavesKingInCheck (KingInCheck kcs))
@@ -635,7 +635,7 @@ queenDirectionLegalMoves i v0 d g =
           (\mp -> case mp of
             Nothing ->
               let nb  = reposition v0 v1 g.board
-                  kcs = inCheck pl nb vk
+                  kcs = inCheck (opponent pl) nb vk
                   rs  = queenDirectionLegalMoves j v0 d g
               in if List.isEmpty kcs
               then (v1, QueenMove v0 d j) :: rs
@@ -645,7 +645,7 @@ queenDirectionLegalMoves i v0 d g =
               then []
               else
                 let nb  = reposition v0 v1 g.board
-                    kcs = inCheck pl nb vk
+                    kcs = inCheck (opponent pl) nb vk
                 in if List.isEmpty kcs
                 then [ (v1, QueenMove v0 d j) ]
                 else []
@@ -681,7 +681,7 @@ kingMove v0 d g =
       (\mp -> case mp of
         Nothing ->
           let nb  = reposition v0 vf g.board
-              kcs = inCheck pl nb vf
+              kcs = inCheck (opponent pl) nb vf
           in if List.isEmpty kcs
           then Result.Ok (vf, nb)
           else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
@@ -690,7 +690,7 @@ kingMove v0 d g =
           then Result.Err (KingMoveMoveError (PathBlocked vf))
           else
             let nb  = reposition v0 vf g.board
-                kcs = inCheck pl nb vf
+                kcs = inCheck (opponent pl) nb vf
             in if List.isEmpty kcs
             then Result.Ok (vf, nb)
             else Result.Err (KingMoveLeavesKingInCheck (KingInCheck kcs))
@@ -721,7 +721,7 @@ kingCastling c g =
         |> List.isEmpty
         )
       && (checkFiles
-        |> List.map (\f -> inCheck pl b (f, r))
+        |> List.map (\f -> inCheck (opponent pl) b (f, r))
         |> List.concat
         |> List.isEmpty
         )
@@ -741,7 +741,7 @@ kingCastling c g =
         |> List.isEmpty
         )
       && (checkFiles
-        |> List.map (\f -> inCheck pl b (f, r))
+        |> List.map (\f -> inCheck (opponent pl) b (f, r))
         |> List.concat
         |> List.isEmpty
         )
@@ -909,7 +909,7 @@ inStraightCheck isOfPieceType pl b v0 i d =
       (\mp -> case mp of
         Nothing -> inStraightCheck isOfPieceType pl b vf n d
         Just p  ->
-          if piecePlayer p /= pl && isOfPieceType (pieceType p)
+          if piecePlayer p == pl && isOfPieceType (pieceType p)
           then Just ((d, n), Tile vf p)
           else Nothing
       )
@@ -932,7 +932,7 @@ inDiagonalCheck isOfPieceType pl b v0 i d =
       (\mp -> case mp of
         Nothing -> inDiagonalCheck isOfPieceType pl b vf n d
         Just p  ->
-          if piecePlayer p /= pl && isOfPieceType (pieceType p)
+          if piecePlayer p == pl && isOfPieceType (pieceType p)
           then Just ((d, n), Tile vf p)
           else Nothing
       )
@@ -963,7 +963,7 @@ inKingStraightOneCheck pl b v0 d =
   let vf = translateStraight d v0
   in Matrix.get vf b
     |> M.join
-    |> M.filter (\p -> pl /= piecePlayer p && King == pieceType p)
+    |> M.filter ((==) (Piece pl King))
     |> Maybe.map (Tile vf >> Tuple.pair d)
 
 inKingDiagonalOneCheck : Player -> Board -> V2 -> DiagonalDirection -> Maybe (DiagonalDirection, Tile)
@@ -971,7 +971,7 @@ inKingDiagonalOneCheck pl b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
     |> M.join
-    |> M.filter (\p -> pl /= piecePlayer p && King == pieceType p)
+    |> M.filter ((==) (Piece pl King))
     |> Maybe.map (Tile vf >> Tuple.pair d)
 
 inKingCheck : Player -> Board -> V2 -> List (Direction, Tile)
@@ -996,7 +996,7 @@ inKnightOneCheck pl b v0 sd hd =
   let vf = translateStraight sd <| translateDiagonal (turnDiagonal sd hd) v0
   in Matrix.get vf b
     |> M.join
-    |> M.filter (\p -> pl /= piecePlayer p && Knight == pieceType p)
+    |> M.filter (\p -> pl == piecePlayer p && Knight == pieceType p)
     |> Maybe.map (Tile vf >> Tuple.pair (sd, hd))
 
 inKnightCheck : Player -> Board -> V2 -> List ((StraightDirection, HorizontalDirection), Tile)
@@ -1018,12 +1018,14 @@ inPawnOneCheck pl b v0 d =
   let vf = translateDiagonal d v0
   in Matrix.get vf b
     |> M.join
-    |> M.filter (\p -> pl /= piecePlayer p && Pawn == pieceType p)
+    -- |> M.filter (\p -> pl == piecePlayer p && Pawn == pieceType p)
+    -- TODO
+    |> M.filter ((==) (Piece pl Pawn))
     |> Maybe.map (Tile vf >> Tuple.pair d)
 
 inPawnCheck : Player -> Board -> V2 -> List (DiagonalDirection, Tile)
 inPawnCheck pl b v = pl
-  |> player [ NE, NW ] [ SE, SW ]
+  |> player [ SE, SW ] [ NE, NW ]
   |> List.map (inPawnOneCheck pl b v)
   |> List.filterMap identity
 
@@ -1031,13 +1033,14 @@ inCheck : Player -> Board -> V2 -> List Tile
 inCheck pl b v =
   Matrix.get v b
   |> M.join
-  |> M.filter (piecePlayer >> (/=) pl)
+  -- REVIEW
+  |> M.filter (piecePlayer >> (==) pl)
   |> M.unwrap
-    [ inPawnCheck pl b v   |> List.map Tuple.second
+    [ inPawnCheck   pl b v |> List.map Tuple.second
     , inKnightCheck pl b v |> List.map Tuple.second
     , inDiagonalsCheck isDiagonalAttacker pl b v |> List.map Tuple.second
     , inStraightsCheck isStraightAttacker pl b v |> List.map Tuple.second
-    , inKingCheck pl b v   |> List.map Tuple.second
+    , inKingCheck   pl b v |> List.map Tuple.second
     ]
     (always [])
   |> List.concat
@@ -1045,7 +1048,7 @@ inCheck pl b v =
 isPlayerInCheck : Player -> Board -> Bool
 isPlayerInCheck pl b =
   findKing pl b
-  |> Maybe.map (inCheck pl b >> List.isEmpty)
+  |> Maybe.map (inCheck (opponent pl) b >> List.isEmpty)
   |> Maybe.withDefault False
 
 tryReposition : V2 -> V2 -> Board -> Maybe Board
@@ -1264,7 +1267,7 @@ gameStatus pl g
   |> M.unwrap
     Invalid
     (\vk ->
-      let kInCheck = inCheck pl g.board vk
+      let kInCheck = inCheck (opponent pl) g.board vk
       in case kInCheck of
         [] -> Normal
         -- One vs More
@@ -1283,4 +1286,4 @@ gameStatus pl g
     )
 
 showTile : (Int, Int) -> String
-showTile (f, r) = String.fromInt (r + 1) ++ intToAlphabet f
+showTile (f, r) = intToAlphabet f ++ String.fromInt (r + 1)

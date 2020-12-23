@@ -3,6 +3,7 @@ module Chess.AlgebraicNotation exposing (..)
 import Alphabet exposing (intToAlphabet)
 import Chess exposing (..)
 import Direction exposing (..)
+import List.Extra as L
 import Maybe.Extra as M
 import Result.Extra as R
 import Matrix
@@ -124,16 +125,17 @@ toAN m g =
 gameAN : Game -> Result ToANError (List String)
 gameAN = undoMove >> M.unwrap (Result.Ok []) (\(m, g) -> R.andMap (gameAN g) (Result.map (::) (toAN m.move g)))
 
--- TODO Expand InvalidAN
-type ANError = InvalidAN | ANAmbiguousMove
+-- TODO Expand ANInvalid
+type ANError = ANInvalid | ANAmbiguousMove | ANDisambiguationUnnecessary
 
 parseAN : Player -> Board -> String -> Result ANError PieceMove
 parseAN pl b an = case an of
   "O-O"   -> Result.Ok <| KingPieceMove <| KingCastling KingSide
   "O-O-O" -> Result.Ok <| KingPieceMove <| KingCastling QueenSide
+  -- TODO En Passant
   an0 ->
     case String.uncons (String.reverse an0) of
-      Nothing -> Result.Err InvalidAN
+      Nothing -> Result.Err ANInvalid
       Just (c, an1) -> case pieceFragmentFromChar c |> Maybe.andThen promotionFromPieceType of
         Just pr ->
           pluckTileReverseAN an1
@@ -157,18 +159,18 @@ parseAN pl b an = case an of
                 |> Maybe.map
                 (\(f0, hd) -> PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f0 hd)
             )
-          |> Result.fromMaybe InvalidAN
+          |> Result.fromMaybe ANInvalid
         Nothing ->
-          pluckTileReverseAN an0
+          pluckTileReverseAN (String.reverse an0)
           |> Maybe.andThen
             (\(vf, an2) ->
               let (ff, rf) = vf
               in String.uncons an2
               |> M.unwrap
-                (Just <| PawnPieceMove <| PawnAdvance vf)
+                (Just <| PawnPieceMove <| PawnAdvance <| translateStraight (player S N pl) vf)
                 (\(cx, an3) ->
                   let capture = cx == captureFragmentChar
-                      an4 = String.reverse (if capture then an2 else an3)
+                      an4 = String.reverse (if capture then an3 else an2)
                   in String.uncons an4
                     |> Maybe.andThen
                       (\(pc, an5) ->
@@ -183,33 +185,61 @@ parseAN pl b an = case an of
                                 Knight ->
                                   case inKnightCheck pl b vf of
                                     -- CHECK PieceType ?
-                                    ((sd, hd), Tile v0 pt) :: [] -> Just <| KnightPieceMove <| KnightMove v0 sd hd
+                                    ((sd, hd), Tile v0 pt) :: [] -> Just <| KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd
                                     _ -> Nothing
                                 Bishop ->
                                   case inBishopCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| BishopPieceMove <| BishopMove v0 d n
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n
                                     _ -> Nothing
                                 Rook   ->
                                   case inRookCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| RookPieceMove <| RookMove v0 d n
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| RookPieceMove <| RookMove v0 (oppositeStraight d) n
                                     _ -> Nothing
                                 Queen  ->
                                   case inQueenCheck pl b vf of
-                                    ((d, n), Tile v0 pt) :: [] -> Just <| QueenPieceMove <| QueenMove v0 d n
+                                    ((d, n), Tile v0 pt) :: [] -> Just <| QueenPieceMove <| QueenMove v0 (opposite d) n
                                     _ -> Nothing
                                 King   ->
                                   case inKingCheck pl b vf of
-                                    (d, Tile v0 pt) :: [] -> Just <| KingPieceMove <| KingMove v0 d
+                                    (d, Tile v0 pt) :: [] -> Just <| KingPieceMove <| KingMove v0 (opposite d)
                                     _ -> Nothing
                                 _ -> Nothing
-                              -- 2 -> pluckTileAN an5 |> Maybe.map Tuple.first
-                              2 -> Nothing
+                              2 -> pluckTileAN an5
+                                |> Maybe.map Tuple.first
+                                |> Maybe.andThen
+                                  (\v0 -> case p of
+                                    Knight ->
+                                      case inKnightCheck pl b vf of
+                                        [] -> Nothing
+                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Knight))) xs
+                                          |> Maybe.map (Tuple.first >> (\(sd, hd) -> KnightPieceMove <| KnightMove v0 (oppositeStraight sd) hd))
+                                    Bishop ->
+                                      case inBishopCheck pl b vf of
+                                        [] -> Nothing
+                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Bishop))) xs
+                                          |> Maybe.map (Tuple.first >> (\(d, n) -> BishopPieceMove <| BishopMove v0 (oppositeDiagonal d) n))
+                                    Rook   ->
+                                      case inRookCheck pl b vf of
+                                        [] -> Nothing
+                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Rook))) xs
+                                          |> Maybe.map (Tuple.first >> (\(d, n) -> RookPieceMove <| RookMove v0 (oppositeStraight d) n))
+                                    Queen  ->
+                                      case inQueenCheck pl b vf of
+                                        [] -> Nothing
+                                        _ :: [] -> Nothing -- DisambiguationUnnecessary
+                                        xs -> L.find (Tuple.second >> (==) (Tile v0 (Piece pl Queen))) xs
+                                          |> Maybe.map (Tuple.first >> (\(d, n) -> QueenPieceMove <| QueenMove v0 (opposite d) n))
+                                    _ -> Nothing
+                                  )
                               _ -> Nothing
                           )
                       )
                 )
             )
-          |> Result.fromMaybe InvalidAN
+          |> Result.fromMaybe ANInvalid
 
 pluckTileAN : String -> Maybe (V2, String)
 pluckTileAN = String.uncons
@@ -217,14 +247,27 @@ pluckTileAN = String.uncons
     (\(fc, s) -> String.uncons s
     |> Maybe.andThen
       (\(rc, u) -> rc
-        |> String.fromChar
-        |> String.toInt
-        |> Maybe.andThen
-          (\r -> intFromAlphabetChar fc
-            |> Maybe.map (\f -> ((f, r), u))
-          )
+      |> String.fromChar
+      |> String.toInt
+      |> Maybe.andThen
+        (\r -> intFromAlphabetChar fc
+        |> Maybe.map (\f -> ((f, r - 1), u))
+        )
       )
     )
 
+-- REVIEW
 pluckTileReverseAN : String -> Maybe (V2, String)
-pluckTileReverseAN = String.reverse >> pluckTileAN
+pluckTileReverseAN = String.uncons
+  >> Maybe.andThen
+    (\(rc, s) -> String.uncons s
+    |> Maybe.andThen
+      (\(fc, u) -> rc
+      |> String.fromChar
+      |> String.toInt
+      |> Maybe.andThen
+        (\r -> intFromAlphabetChar fc
+        |> Maybe.map (\f -> ((f, r - 1), u))
+        )
+      )
+    )

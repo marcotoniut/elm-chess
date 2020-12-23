@@ -7,24 +7,31 @@ import Expect exposing (Expectation)
 import Matrix
 import Test exposing (..)
 
+pluckTileANSuite : Test
+pluckTileANSuite = describe "pluckTileAN"
+  [ test "f2"
+    (\_ -> Expect.equal (Just ((5, 1), "...")) <| pluckTileAN "f2...")
+  ]
+
 pluckTileReverseANSuite : Test
 pluckTileReverseANSuite = describe "pluckTileReverseAN"
   [ test "e4"
-    (\_ -> Expect.equal (Just ((4, 4), ""))   <| pluckTileReverseAN "4e")
-  , test "e5"
-    (\_ -> Expect.equal (Just ((5, 2), "xx")) <| pluckTileReverseAN "2fxx")
+    (\_ -> Expect.equal (Just ((4, 3), ""))   <| pluckTileReverseAN "4e")
+  , test "f2"
+    (\_ -> Expect.equal (Just ((5, 1), "...")) <| pluckTileReverseAN "2f...")
   , test "a6"
-    (\_ -> Expect.equal (Just ((0, 6), ""))   <| pluckTileReverseAN "6a")
+    (\_ -> Expect.equal (Just ((0, 5), ""))   <| pluckTileReverseAN "6a")
   ]
 
 testComposition : List Tile
 testComposition =
   [ Tile (0, 7) (Piece Black Rook)
-  , Tile (0, 3) (Piece Black Bishop)
   , Tile (3, 7) (Piece Black Queen)
-  , Tile (1, 3) (Piece Black Bishop)
-  , Tile (7, 7) (Piece Black Rook)
   , Tile (5, 2) (Piece Black Pawn)
+  , Tile (2, 2) (Piece White Knight)
+  , Tile (4, 2) (Piece White Knight)
+  , Tile (5, 5) (Piece Black Knight)
+  , Tile (3, 3) (Piece White Bishop)
   , Tile (0, 1) (Piece White Pawn)
   , Tile (1, 1) (Piece White Pawn)
   , Tile (2, 1) (Piece White Pawn)
@@ -46,43 +53,43 @@ testBoard = List.foldl
 parseANSuite : Test
 parseANSuite = describe "parseAN"
   [ test "e4"
-    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (4, 3))))
-      <| parseAN White testBoard "e4"
+    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (4, 2))))
+    <| parseAN White testBoard "e4"
+    )
+  , test "e5"
+    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (4, 5))))
+    <| parseAN Black testBoard "e5"
     )
   , test "O-O-O"
     (\_ -> Expect.equal (Result.Ok <| KingPieceMove <| KingCastling QueenSide)
-      <| parseAN White testBoard "O-O-O"
+    <| parseAN White testBoard "O-O-O"
     )
   , test "O-O"
     (\_ -> Expect.equal (Result.Ok <| KingPieceMove <| KingCastling KingSide)
-      <| parseAN Black testBoard "O-O"
+    <| parseAN Black testBoard "O-O"
     )
   , test "e8Q"
     (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnPromotion QueenPromotion (PawnPromotionAdvance 4))))
-      <| parseAN White testBoard "e8Q"
+    <| parseAN White testBoard "e8Q"
     )
   , test "dxe1N"
     (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnPromotion KnightPromotion (PawnPromotionCapture 3 Left))))
-      <| parseAN White testBoard "dxe1N"
+    <| parseAN White testBoard "dxe1N"
     )
-  , test "e5"
-    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (4, 4))))
-      <| parseAN White testBoard "e5"
+  , test "Nc3d5 White"
+    (\_ -> Expect.equal (Result.Ok (KnightPieceMove (KnightMove (2, 2) N Right)))
+    <| parseAN White testBoard "Nc3d5"
     )
-  , test "Nf3"
-    (\_ -> Expect.equal (Result.Ok (KnightPieceMove (KnightMove (3, 3) N Left)))
-      <| parseAN White testBoard "Nf3"
+  , test "Nd5 Black"
+    (\_ -> Expect.equal (Result.Ok (KnightPieceMove (KnightMove (5, 5) W Left)))
+    <| parseAN Black testBoard "Nd5"
     )
-  , test "Nc6"
-    (\_ -> Expect.equal (Result.Ok (KnightPieceMove (KnightMove (4, 3) E Right)))
-      <| parseAN White testBoard "Nc6"
+  , test "Bb6"
+    (\_ -> Expect.equal (Result.Ok (BishopPieceMove (BishopMove (3, 3) NW 2)))
+    <| parseAN White testBoard "Bb6"
     )
-  , test "Bb5"
-    (\_ -> Expect.equal (Result.Ok (BishopPieceMove (BishopMove (4, 3) SE 2)))
-      <| parseAN White testBoard "Bb5"
-    )
-  , test "a6"
-    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (4, 3)))) 
-      <| parseAN White testBoard "a6"
+  , test "a3"
+    (\_ -> Expect.equal (Result.Ok (PawnPieceMove (PawnAdvance (0, 1)))) 
+    <| parseAN White testBoard "a3"
     )
   ]
