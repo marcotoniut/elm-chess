@@ -79,6 +79,8 @@ update msg model = case msg of
   UndoPieceMove ->
     { model
     | gameState = Result.map (\g -> M.unwrap g Tuple.second (undoMove g)) model.gameState
+    , maybeSelected = Nothing
+    , choosingPromotion = Nothing
     , moves
       = model.moves
       |> List.tail
@@ -277,37 +279,21 @@ view model =
               [ style "margin" "1em"
               , style "border" "1px solid black"
               ]
-              [ moveHistoryView g ]
+              [ input
+                [ onInput ChangeInput
+                , style "backgroundColor" "lightyellow"
+                , style "border" "none"
+                , style "border-bottom" "1px solid black"
+                , style "border-radius" "0"
+                , style "box-sizing" "border-box"
+                , style "width" "100%"
+                ] []
+              , moveHistoryView g
+              ]
             ]
           )
           model.gameState
       , moveCommandsView MovePiece model.gameState
-      , div
-        [ style "margin" "1em"
-        , style "border" "1px solid black"
-        ]
-        [ input
-          [ onInput ChangeInput
-          , style "backgroundColor" "lightyellow"
-          , style "border" "none"
-          , style "border-bottom" "1px solid black"
-          , style "border-radius" "0"
-          , style "box-sizing" "border-box"
-          , style "width" "100%"
-          ] []
-        , model.moves
-          |> List.indexedMap
-            (\i ->
-              moveText
-              >> List.singleton
-              >> li [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-            )
-          |> ul
-            [ style "list-style" "none"
-            , style "margin" "0"
-            , style "min-height" "100px"
-            , style "padding" "0"
-            ]
-        ]
+      -- , movePiecesView
       ]
     ]

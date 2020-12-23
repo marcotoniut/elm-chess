@@ -225,17 +225,20 @@ pawnEnPassantTarget pl f h =
         Right -> player NE SE
   in translateDiagonal d (f, pawnsRank pl)
 
-pawnLegalEnPassants : Int -> Game -> List (V2, PawnMove)
-pawnLegalEnPassants f g =
-  [ Left, Right ]
-  |> List.filterMap
-    (\d ->
-      pawnEnPassant d g
-      |> Result.toMaybe
-      |> Maybe.map Tuple.first
-      |> M.filter (Tuple.first >> (==) (translateHorizontal d f))
-      |> Maybe.map (\v -> (v, PawnEnPassant d))
-    )
+pawnLegalEnPassants : V2 -> Game -> List (V2, PawnMove)
+pawnLegalEnPassants (f, r) g =
+  if r /= enPassantRank (gameTurn g)
+  then []
+  else
+    [ Left, Right ]
+    |> List.filterMap
+      (\d ->
+        pawnEnPassant d g
+        |> Result.toMaybe
+        |> Maybe.map Tuple.first
+        |> M.filter (Tuple.first >> (==) (translateHorizontal d f))
+        |> Maybe.map (\v -> (v, PawnEnPassant d))
+      )
 
 pawnLegalMoves : V2 -> Game -> List (V2, PawnMove)
 pawnLegalMoves v g =
@@ -243,7 +246,7 @@ pawnLegalMoves v g =
   [ pawnLegalAdvances v g
   , pawnLegalDoubleAdvances v g
   , pawnLegalCaptures v g
-  , pawnLegalEnPassants f g
+  , pawnLegalEnPassants v g
   ]
   |> List.concat
 
