@@ -26,8 +26,8 @@ moveButton onClickHandle m rg =
   )
   [ moveText m ]
 
-moveCommands : (PieceMove -> m) -> Result PlayError Game -> Html m
-moveCommands onClickHandle s =
+moveCommandsView : (PieceMove -> m) -> Result PlayError Game -> Html m
+moveCommandsView onClickHandle s =
   let commandView = moveButton onClickHandle
   in div
   [ style "display" "grid"

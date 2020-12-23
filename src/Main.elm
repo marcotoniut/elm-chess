@@ -24,6 +24,7 @@ import Theme exposing (
 import View.Base exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
+import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 
 -- MODEL
@@ -276,26 +277,11 @@ view model =
               [ style "margin" "1em"
               , style "border" "1px solid black"
               ]
-              [ gameAN g
-              |> R.unwrap
-                blank
-                (List.indexedMap
-                  (\i x ->
-                    li
-                    [ style "backgroundColor" <| if modBy 2 i == 0 then "white" else "lightgrey" ]
-                    [ text x ]
-                  )
-                >> ul
-                  [ style "list-style" "none"
-                  , style "margin" "0"
-                  , style "min-height" "100px"
-                  , style "padding" "0"
-                  ]
-                )]
+              [ moveHistoryView g ]
             ]
           )
           model.gameState
-      , moveCommands MovePiece model.gameState
+      , moveCommandsView MovePiece model.gameState
       , div
         [ style "margin" "1em"
         , style "border" "1px solid black"
