@@ -6,17 +6,13 @@ import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
-import Theme exposing (
-    darkSpaceColor, darkSpaceColor
-  , lightSpaceColor, borderColor, whitePlayerColor
-  , blackPlayerColor, checkSize
-  )
+import Theme exposing (..)
 
 itemView : (PawnPromotion -> m) -> PawnPromotion -> Html m
 itemView choose pr =
   li
   [ onClick <| choose pr
-  , style "font-size" checkSize
+  , style "font-size" (intToPx tileSize)
   , style "margin" "0 10px"
   ]
   [ text <| pieceToIcon <| Piece White <| promote pr ]

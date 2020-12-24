@@ -1,14 +1,13 @@
 module Chess.AlgebraicNotation exposing (..)
 
-import Alphabet exposing (intToAlphabet)
+import Alphabet exposing (intFromAlphabetChar, intToAlphabet)
 import Chess exposing (..)
 import Direction exposing (..)
 import List.Extra as L
-import Maybe.Extra as M
-import Result.Extra as R
 import Matrix
 import Maybe
-import Alphabet exposing (intFromAlphabetChar)
+import Maybe.Extra as M
+import Result.Extra as R
 
 type ToANError
   = ToANPlayError PlayError

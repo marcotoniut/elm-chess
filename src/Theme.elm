@@ -10,5 +10,9 @@ whitePlayerColor : String
 whitePlayerColor = "#ffffff" -- (255,255,255)
 blackPlayerColor : String
 blackPlayerColor = "#000000" -- (0,0,0)
-checkSize        : String
-checkSize        = "70px"
+
+intToPx : Int -> String
+intToPx = String.fromInt >> (\s -> s ++ "px")
+
+tileSize : Int
+tileSize = 70

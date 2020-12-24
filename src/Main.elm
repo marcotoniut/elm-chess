@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import Alphabet exposing (intToAlphabet)
 import Array
 import Browser
 import Direction exposing (..)
@@ -8,19 +9,15 @@ import Chess.AlgebraicNotation exposing (..)
 import Chess.Composition exposing (standardComposition, castlingComposition)
 import Component exposing (blank, emptyAttribute)
 import Debug
+import Html exposing (Html, a, button, br, node, div, ul, li, span, text, input)
 import Html.Attributes exposing (width, height, style, disabled, title)
-import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
 import List.Extra as L
 import Matrix
 import Maybe.Extra as M
 import Result.Extra as R
-import Theme exposing (
-    darkSpaceColor, darkSpaceColor
-  , lightSpaceColor, borderColor, whitePlayerColor
-  , blackPlayerColor, checkSize
-  )
+import Theme exposing (..)
 import View.Base exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
@@ -79,8 +76,8 @@ update msg model = case msg of
   UndoPieceMove ->
     { model
     | gameState = Result.map (\g -> M.unwrap g Tuple.second (undoMove g)) model.gameState
-    , maybeSelected = Nothing
     , choosingPromotion = Nothing
+    , maybeSelected = Nothing
     , moves
       = model.moves
       |> List.tail
@@ -194,29 +191,40 @@ view model =
       [ style "display" "flex"
       , style "flex-direction" "column"
       ]
-      ([ model.gameState
+      ([ fileBorderRowView 8
+        , model.gameState
         |> Result.map
           (\g -> g.board
           |> Matrix.toList
           |> List.indexedMap
             (\r xs -> div
-              [ style "display" "flex"
+              [ style "margin" "0 auto"
+              , style "display" "flex"
+              -- , style "width" "640px"
+              -- , style "height" "640px"
+              -- , style "display" "grid"
+              -- , style "grid-template-columns" "repeat(8, 1fr)"
               ]
-              (List.indexedMap
-                (\f ->
-                  let v = (f, r)
-                  in model.maybeSelected
-                    |> M.unwrap
-                      TileCleared
-                      (\(s, ls) ->
-                        if v == s
-                        then TileSelected
-                        else case L.find (\(vm, _) -> vm == v) ls of
-                          Nothing     -> TileCleared
-                          Just (_, m) -> TileChecked m
-                      )
-                    |> tileView SelectTile g.board v
-                ) xs
+              (List.concat
+                [ [ rankBorderCellView r ]
+                , (List.indexedMap
+                    (\f ->
+                      let v = (f, r)
+                      in model.maybeSelected
+                        |> M.unwrap
+                          TileCleared
+                          (\(s, ls) ->
+                            if v == s
+                            then TileSelected
+                            else case L.find (\(vm, _) -> vm == v) ls of
+                              Nothing     -> TileCleared
+                              Just (_, m) -> TileChecked m
+                          )
+                        |> tileView SelectTile g.board v
+                    ) xs
+                  )
+                , [ rankBorderCellView r ]
+                ]
               )
             )
           |> List.reverse
@@ -237,14 +245,13 @@ view model =
             )
           |> div
             [ style "position" "relative"
-            , style "border-color" borderColor
-            , style "border-style" "solid"
-            , style "border-width" "35px"
+            , style "border" "none"
             , if cp then style "pointer-events" "none" else emptyAttribute
             ]
           )
         |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
         |> R.merge
+      , fileBorderRowView 8
       ]
       |> List.append
         ( if cp
@@ -297,3 +304,39 @@ view model =
       -- , movePiecesView
       ]
     ]
+
+rankBorderCellView : Int -> Html a
+rankBorderCellView i =
+  div
+  [ style "width" (intToPx (tileSize // 2))
+  , style "display" "flex"
+  , style "justify-content" "center"
+  , style "align-items" "center"
+  , style "background-color" borderColor
+  ]
+  [ text <| String.fromInt <| i + 1 ]
+
+
+fileBorderRowView : Int -> Html a
+fileBorderRowView n =
+  div
+  [ style "background-color" borderColor
+  , style "display" "flex"
+  , style "height" (intToPx (tileSize // 2))
+  , style "margin" "0 auto"
+  , style "padding" ("0 " ++ intToPx (tileSize // 2))
+  , style "text-align" "center"
+  , style "v-align" "center"
+  ]
+  (List.range 0 (n - 1) |> List.map
+    (intToAlphabet
+    >> text
+    >> List.singleton
+    >> div
+      [ style "width" (intToPx tileSize)
+      , style "display" "flex"
+      , style "justify-content" "center"
+      , style "align-items" "center"
+      ]
+    )
+  )
