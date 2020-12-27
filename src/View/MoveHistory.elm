@@ -1,7 +1,7 @@
 module View.MoveHistory exposing (..)
 
-import Chess exposing (..)
 import Chess.AlgebraicNotation exposing (..)
+import Chess.Base exposing (..)
 import Component exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)

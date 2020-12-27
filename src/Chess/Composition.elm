@@ -1,6 +1,6 @@
 module Chess.Composition exposing (..)
 
-import Chess exposing (Tile(..), Piece(..), PieceType(..), Player(..))
+import Chess.Base exposing (Tile(..), Piece(..), PieceType(..), Player(..))
 
 standardComposition : List Tile
 standardComposition =

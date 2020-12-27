@@ -1,6 +1,6 @@
 module View.Debug.MoveCommands exposing (..)
 
-import Chess exposing (..)
+import Chess.Base exposing (..)
 import Direction exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)

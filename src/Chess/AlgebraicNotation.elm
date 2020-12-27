@@ -1,7 +1,7 @@
 module Chess.AlgebraicNotation exposing (..)
 
 import Alphabet exposing (intFromAlphabetChar, intToAlphabet)
-import Chess exposing (..)
+import Chess.Base exposing (..)
 import Direction exposing (..)
 import List.Extra as L
 import Matrix

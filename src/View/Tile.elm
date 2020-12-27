@@ -1,6 +1,6 @@
 module View.Tile exposing (..)
 
-import Chess exposing (..)
+import Chess.Base exposing (..)
 import Component exposing (blank, emptyAttribute)
 import Direction exposing (..)
 import Html exposing (Html, button, br, node, div, ul, li, span, text, input)

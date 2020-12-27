@@ -1,4 +1,4 @@
-module Chess exposing (..)
+module Chess.Base exposing (..)
 
 import Alphabet exposing (intToAlphabet)
 import Direction exposing (..)

@@ -1,6 +1,6 @@
 module View.Base exposing (..)
 
-import Chess exposing (..)
+import Chess.Base exposing (..)
 import Direction exposing (..)
 
 type ChoosingPromotion
