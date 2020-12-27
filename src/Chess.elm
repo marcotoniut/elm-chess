@@ -276,10 +276,17 @@ pawnPromotionAdvance f g =
     Nothing -> Result.Err (PawnPromotionMoveError (OutOfBounds vf))
     Just tf -> case tf of
       Nothing ->
-        Matrix.set v0 Nothing b
-        |> Matrix.set vf (Just (Piece pl Pawn))
-        |> Tuple.pair (Translation v0 vf)
-        |> Result.Ok
+        findKing pl g.board
+        |> M.unwrap (Result.Err (PawnPromotionMoveError (PlayerHasNoKing)))
+          (\vk ->
+            let nb = Matrix.set v0 Nothing b |> Matrix.set vf (Just (Piece pl Pawn))
+                kcs = inCheck (opponent pl) nb vk
+            in if List.isEmpty kcs
+            then nb
+              |> Tuple.pair (Translation v0 vf)
+              |> Result.Ok
+            else Result.Err (PawnPromotionLeavesKingInCheck (KingInCheck kcs))
+          )
       Just pf -> Result.Err (PawnPromotionAdvanceError (PawnPromotionBlocked f pf))
 
 pawnPromotionCapture : Int -> HorizontalDirection -> Game -> Result PawnPromotionError (Translation, Board)
@@ -297,10 +304,17 @@ pawnPromotionCapture f d g =
       Just pf ->
         if piecePlayer pf /= pl
         then
-          Matrix.set v0 Nothing b
-          |> Matrix.set vf (Just (Piece pl Pawn))
-          |> Tuple.pair (Translation v0 vf)
-          |> Result.Ok
+          findKing pl g.board
+          |> M.unwrap (Result.Err (PawnPromotionMoveError (PlayerHasNoKing)))
+            (\vk ->
+              let nb = Matrix.set v0 Nothing b |> Matrix.set vf (Just (Piece pl Pawn))
+                  kcs = inCheck (opponent pl) nb vk
+              in if List.isEmpty kcs
+              then nb
+                |> Tuple.pair (Translation v0 vf)
+                |> Result.Ok
+              else Result.Err (PawnPromotionLeavesKingInCheck (KingInCheck kcs))
+            )
         else Result.Err (PawnPromotionMoveError (PathBlocked vf))
 
 pawnLegalPromotionAdvances : V2 -> Game -> List (V2, PawnPromotionMove)
