@@ -1,7 +1,12 @@
-build:
-	elm make src/Main.elm --output=../chess-web/app/index.html
+#!/bin/bash
 
-watch:
+build:
+	elm make src/Main.elm --output=../chess-web/app/elm.js
+
+# watch:
+# 	elm make src/Main.elm --output=../chess-web/app/elm.js
+
+watch-reactor:
 	elm reactor
 
 test:
