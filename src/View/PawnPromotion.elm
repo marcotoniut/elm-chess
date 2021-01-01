@@ -2,8 +2,8 @@ module View.PawnPromotion exposing (..)
 
 import Browser
 import Chess.Base exposing (..)
-import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
-import Html.Attributes exposing (width, height, style, disabled, title)
+import Html exposing (Html, button, br, node, div, img, ul, li, span, text, input)
+import Html.Attributes exposing (attribute, width, height, style, disabled, src, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
 import Theme exposing (..)
@@ -14,8 +14,12 @@ itemView choose pr =
   [ onClick <| choose pr
   , style "font-size" (intToPx tileSize)
   , style "margin" "0 10px"
+  , style "width" (intToPx tileSize)
   ]
-  [ text <| pieceToIcon <| Piece White <| promote pr ]
+  [ img
+    [ src ("/app/icons/" ++ pieceToIcon (Piece White <| promote pr))
+    ] []
+  ]
 
 view : (PawnPromotion -> m) -> Html m
 view choose =

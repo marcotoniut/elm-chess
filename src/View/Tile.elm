@@ -3,8 +3,8 @@ module View.Tile exposing (..)
 import Chess.Base exposing (..)
 import Component exposing (blank, emptyAttribute)
 import Direction exposing (..)
-import Html exposing (Html, button, br, node, div, ul, li, span, text, input)
-import Html.Attributes exposing (width, height, style, disabled, title)
+import Html exposing (Html, button, br, node, div, ul, li, span, text, img, input)
+import Html.Attributes exposing (attribute, style, disabled, src, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
 import Theme exposing (..)
@@ -61,15 +61,15 @@ tileView select b v t mp =
     , mp
       |> Maybe.map
         (\p ->
-          span
-          [ style "position" "absolute"
+          img
+          [ src ("/app/icons/" ++ pieceToIcon p)
+          , attribute "height" "90%"
+          , attribute "width" "90%"
+          , style "position" "absolute"
+          , style "transform" "translate(-50%, -50%)"
           , style "left" "50%"
           , style "top" "50%"
-          , style "transform" "translate(-50%, -50%)"
-          , style "font-size" (intToPx tileSize)
-          , style "user-select" "none"
-          ]
-          [ text <| pieceToIcon p ]
+          ] []
         )
       |> Maybe.withDefault blank
     ]

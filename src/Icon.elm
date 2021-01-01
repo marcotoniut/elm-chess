@@ -4,15 +4,15 @@ import Chess.Base exposing (Piece(..), PieceType(..), Player(..))
 
 pieceToIcon : Piece -> String
 pieceToIcon p =  case p of
-  Piece White King   -> "♔" -- U+2654	&#9812;	&#x2654;
-  Piece White Queen  -> "♕" -- U+2655 &#9813;	&#x2655;
-  Piece White Rook   -> "♖" -- U+2656	&#9814;	&#x2656;
-  Piece White Bishop -> "♗" -- U+2657	&#9815;	&#x2657;
-  Piece White Knight -> "♘" -- U+2658	&#9816;	&#x2658;
-  Piece White Pawn   -> "♙" -- U+2659	&#9817;	&#x2659;
-  Piece Black King   -> "♚" -- U+265A	&#9818;	&#x265A;
-  Piece Black Queen  -> "♛" -- U+265B	&#9819;	&#x265B;
-  Piece Black Rook   -> "♜" -- U+265C	&#9820;	&#x265C;
-  Piece Black Bishop -> "♝" -- U+265D	&#9821;	&#x265D;
-  Piece Black Knight -> "♞" -- U+265E	&#9822;	&#x265E;
-  Piece Black Pawn   -> "♟︎" -- U+265F &#9823; &#x265F;
+  Piece White King   -> "Chess_klt45.svg"
+  Piece White Queen  -> "Chess_qlt45.svg"
+  Piece White Rook   -> "Chess_rlt45.svg"
+  Piece White Bishop -> "Chess_blt45.svg"
+  Piece White Knight -> "Chess_nlt45.svg"
+  Piece White Pawn   -> "Chess_plt45.svg"
+  Piece Black King   -> "Chess_kdt45.svg"
+  Piece Black Queen  -> "Chess_qdt45.svg"
+  Piece Black Rook   -> "Chess_rdt45.svg"
+  Piece Black Bishop -> "Chess_bdt45.svg"
+  Piece Black Knight -> "Chess_ndt45.svg"
+  Piece Black Pawn   -> "Chess_pdt45.svg"
