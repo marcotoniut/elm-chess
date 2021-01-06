@@ -161,7 +161,7 @@ main = Browser.application
 type Msg
   = ChangeInput String
   | MovePiece PieceMove
-  | SelectTile V2
+  | BoardAction BoardAction
   | ChoosePromotion PawnPromotion
   | Process Value
   | Close
@@ -215,7 +215,7 @@ update msg model = case msg of
             )
       )
     |> Result.withDefault (model |> withNoCmd)
-  SelectTile v -> R.unwrap model
+  BoardAction (SelectTile (v, mp)) -> R.unwrap model
     (\g ->
       let pl = gameTurn g
       in case model.maybeSelected of
@@ -334,57 +334,13 @@ mainView model =
       , style "flex-direction" "column"
       ]
       ([ fileBorderRowView 8
-        , model.gameState
+      , model.gameState
         |> Result.map
-          (\g -> g.board
-          |> Matrix.toList
-          |> List.indexedMap
-            (\r xs -> div
-              [ style "margin" "0 auto"
-              , style "display" "flex"
-              ]
-              (List.concat
-                [ [ rankBorderCellView r ]
-                , (List.indexedMap
-                    (\f ->
-                      let v = (f, r)
-                      in model.maybeSelected
-                        |> M.unwrap
-                          TileCleared
-                          (\(s, ls) ->
-                            if v == s
-                            then TileSelected
-                            else L.find (\(vm, _) -> vm == v) ls
-                              |> M.unwrap TileCleared (Tuple.second >> TileChecked)
-                          )
-                        |> tileView SelectTile g.board v
-                    ) xs
-                  )
-                , [ rankBorderCellView r ]
-                ]
-              )
-            )
-          |> List.reverse
-          |> List.append
-            ( if cp
-              then
-                [ div
-                  [ style "position" "absolute"
-                  , style "backgroundColor" "black"
-                  , style "height" "100%"
-                  , style "opacity" ".2"
-                  , style "width" "100%"
-                  , style "z-index" "2"
-                  ]
-                  []
-                ]
-              else []
-            )
-          |> div
-            [ style "position" "relative"
-            , style "border" "none"
-            , if cp then style "pointer-events" "none" else emptyAttribute
-            ]
+          (\g -> viewBoard BoardAction
+            { board = g.board
+            , choosingPromotion = model.choosingPromotion
+            , maybeSelected = model.maybeSelected
+            }
           )
         |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
         |> R.merge

@@ -7,6 +7,8 @@ import Html exposing (Html, button, br, node, div, ul, li, span, text, img, inpu
 import Html.Attributes exposing (attribute, style, disabled, src, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
+import Matrix
+import Maybe.Extra as M
 import Theme exposing (..)
 import View.Base exposing (..)
 
@@ -15,18 +17,17 @@ type TileInteraction
   | TileChecked AvailableMove
   | TileCleared
 
-tileView : (V2 -> m) -> Board -> V2 -> TileInteraction -> Maybe Piece -> Html m
-tileView select b v t mp =
-  let (f, r) = v
-      wcs = inCheck White b v
-      bcs = inCheck Black b v
+tileView : ((V2, Maybe Piece) -> m) -> Board -> (V2, Maybe Piece) -> TileInteraction -> Html m
+tileView select b t i =
+  let (v, mp) = t
+      (f, r)  = v
   in div
     [ style "position" "relative"
     , style "backgroundColor"
       <| if (modBy 2 (f + r) == 0) then darkSpaceColor else lightSpaceColor
     , style "width" (intToPx tileSize)
     , style "height" (intToPx tileSize)
-    , onClick <| select v
+    , onClick <| select t
     ]
     [ div
       (List.concat
@@ -36,7 +37,7 @@ tileView select b v t mp =
           , style "right" "0"
           , style "top" "0"
           ]
-        , case t of
+        , case i of
           TileSelected  ->
             [ style "backgroundColor" "mediumvioletred"
             , style "opacity" ".7"
@@ -73,3 +74,4 @@ tileView select b v t mp =
         )
       |> Maybe.withDefault blank
     ]
+  
