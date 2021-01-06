@@ -2,7 +2,7 @@ module View.Tile exposing (..)
 
 import Chess.Base exposing (..)
 import Component exposing (blank, emptyAttribute)
-import Direction exposing (..)
+import Direction exposing (V2)
 import Html exposing (Html, button, br, node, div, ul, li, span, text, img, input)
 import Html.Attributes exposing (attribute, style, disabled, src, title)
 import Html.Events exposing (onInput, onClick)

@@ -29,6 +29,7 @@ import Url as Url
 import Url.Parser exposing (Parser, (</>), (<?>), int, map, oneOf, parse, s, string)
 import Url.Parser.Query as Query
 import View.Base exposing (..)
+import View.Board exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
@@ -102,7 +103,7 @@ wsKey = "socket"
 
 type Route
   = ChessRoute String (Maybe String)
-  -- = ChessRoute String String
+  -- = LobbyRoute String
 
 routeParser : Parser (Route -> a) a
 routeParser =
@@ -341,10 +342,6 @@ mainView model =
             (\r xs -> div
               [ style "margin" "0 auto"
               , style "display" "flex"
-              -- , style "width" "640px"
-              -- , style "height" "640px"
-              -- , style "display" "grid"
-              -- , style "grid-template-columns" "repeat(8, 1fr)"
               ]
               (List.concat
                 [ [ rankBorderCellView r ]
@@ -357,9 +354,8 @@ mainView model =
                           (\(s, ls) ->
                             if v == s
                             then TileSelected
-                            else case L.find (\(vm, _) -> vm == v) ls of
-                              Nothing     -> TileCleared
-                              Just (_, m) -> TileChecked m
+                            else L.find (\(vm, _) -> vm == v) ls
+                              |> M.unwrap TileCleared (Tuple.second >> TileChecked)
                           )
                         |> tileView SelectTile g.board v
                     ) xs
@@ -447,41 +443,6 @@ mainView model =
       ]
     ]
 
-rankBorderCellView : Int -> Html a
-rankBorderCellView i =
-  div
-  [ style "width" (intToPx (tileSize // 2))
-  , style "display" "flex"
-  , style "justify-content" "center"
-  , style "align-items" "center"
-  , style "background-color" borderColor
-  ]
-  [ text <| String.fromInt <| i + 1 ]
-
-
-fileBorderRowView : Int -> Html a
-fileBorderRowView n =
-  div
-  [ style "background-color" borderColor
-  , style "display" "flex"
-  , style "height" (intToPx (tileSize // 2))
-  , style "margin" "0 auto"
-  , style "padding" ("0 " ++ intToPx (tileSize // 2))
-  , style "text-align" "center"
-  , style "v-align" "center"
-  ]
-  (List.range 0 (n - 1) |> List.map
-    (intToAlphabet
-    >> text
-    >> List.singleton
-    >> div
-      [ style "width" (intToPx tileSize)
-      , style "display" "flex"
-      , style "justify-content" "center"
-      , style "align-items" "center"
-      ]
-    )
-  )
 
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
