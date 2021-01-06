@@ -16,15 +16,18 @@ import Html exposing (Html, a, button, br, node, div, ul, li, span, text, input)
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html.Events exposing (onInput, onClick)
 import Json.Encode exposing (Value)
+import Lib.PortFunnels exposing (FunnelDict, Handler(..), State)
+import Lib.PortFunnels as PF
 import List.Extra as L
 import Matrix
 import Maybe.Extra as M
 import PortFunnel.WebSocket as WS exposing (Response(..))
-import PortFunnels exposing (FunnelDict, Handler(..), State)
 import Result.Extra as R
+import Chess.Board exposing (..)
 import Theme exposing (..)
 import Url as Url
-import Url.Parser exposing (Parser, (</>), int, map, oneOf, parse, s, string)
+import Url.Parser exposing (Parser, (</>), (<?>), int, map, oneOf, parse, s, string)
+import Url.Parser.Query as Query
 import View.Base exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
@@ -38,7 +41,7 @@ handlers =
   ]
 
 subscriptions : m -> Sub Msg
-subscriptions = PortFunnels.subscriptions Process
+subscriptions = PF.subscriptions Process
 -- subscriptions = 
 --   Sub.batch
 --     [ subPort Receive
@@ -46,16 +49,16 @@ subscriptions = PortFunnels.subscriptions Process
 --     ]
 
 funnelDict : FunnelDict Model Msg
-funnelDict = PortFunnels.makeFunnelDict handlers getCmdPort
+funnelDict = PF.makeFunnelDict handlers getCmdPort
 
 
 {-| Get a possibly simulated output port. -}
 getCmdPort : String -> Model -> (Value -> Cmd Msg)
-getCmdPort n m = PortFunnels.getCmdPort Process n m.ws.useSimulator
+getCmdPort n m = PF.getCmdPort Process n m.ws.useSimulator
 
 {-| The real output port. -}
 cmdPort : Value -> Cmd Msg
-cmdPort = PortFunnels.getCmdPort Process "" False
+cmdPort = PF.getCmdPort Process "" False
 
 type alias WebSocket =
   { log : List String
@@ -67,6 +70,7 @@ type alias WebSocket =
 
 type alias Model =
   { input : String
+  , initialBoard : Board
   , moves : List PieceMove
   , gameState : Result PlayError Game
   , maybeSelected : Maybe (V2, List (V2, AvailableMove))
@@ -74,7 +78,7 @@ type alias Model =
   -- , channel : String
   -- , navKey : Nav.Key
   , route : Maybe Route
-  , player : String
+  -- , player : Maybe String
   , opponent : Maybe String
   , ws : WebSocket
   }
@@ -97,12 +101,13 @@ wsKey : String
 wsKey = "socket"
 
 type Route
-  = ChessRoute String
+  = ChessRoute String (Maybe String)
+  -- = ChessRoute String String
 
 routeParser : Parser (Route -> a) a
 routeParser =
   oneOf
-    [ map ChessRoute   (s "chess" </> string)
+    [ map ChessRoute (s "chess" </> string <?> Query.string "name")
     ]
 
 init : flags -> Url.Url -> Navigation.Key -> (Model, Cmd Msg)
@@ -111,15 +116,13 @@ init _ url _ =
         { log = []
         , useSimulator = False
         , wasLoaded = False
-        , state = PortFunnels.initialState
+        , state = PF.initialState
         , error = Nothing
         }
       model =
-        { gameState = Result.Ok
-          { board = List.foldl
-              (\(Tile (x, y) p) g -> Matrix.set (x, y) (Just p) g)
-              initBoard
-              standardComposition
+        { initialBoard = initBoard
+        , gameState = Result.Ok 
+          { board = composeBoard initBoard standardComposition
           , moves = []
           , blackCastlingAvailable = castlingEnabled
           , whiteCastlingAvailable = castlingEnabled
@@ -129,18 +132,19 @@ init _ url _ =
         , maybeSelected = Nothing
         , choosingPromotion = Nothing
         , route = parse routeParser url
-        , player = "Marco"
         , opponent = Nothing
         , ws = ws
         }
-  in model
-  |> M.unwrap
-    withNoCmd
+  in M.unwrap
+    (withNoCmd model)
     (\r -> case r of
-      ChessRoute c ->
-        let wsUrl = consWsUrl c model.player
-        in withCmd (WS.makeOpenWithKey wsKey wsUrl |> send model)
+      ChessRoute c pl ->
+        let wsUrl = consWsUrl c (Maybe.withDefault "" pl)
+        in appendLog ("Connecting to " ++ wsUrl) model.ws
+        |> asWsIn model
+        |> withCmd (WS.makeOpenWithKey wsKey wsUrl |> send model)
     )
+    -- (Maybe.map2 Tuple.pair model.route model.player)
     model.route
 
 main : Program () Model Msg
@@ -161,27 +165,30 @@ type Msg
   | Process Value
   | Close
   | Connect
+  -- | GameStart
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
   Connect ->
-    let ws  = model.ws
-        url = consWsUrl "111" "Marco"
-    in appendLog
-        (if ws.useSimulator
-        then "Connecting to simulator"
-        else "Connecting to " ++ url
-        ) model.ws
-      |> asWsIn model
-      |> withCmd (WS.makeOpenWithKey wsKey url |> send model)
-      -- |> withCmd (WS.makeOpen url |> send model)
+    M.unwrap
+      (withNoCmd model)
+      (\r -> case r of
+        ChessRoute c pl ->
+          let wsUrl = consWsUrl c (Maybe.withDefault "" pl)
+          in appendLog ("Connecting to " ++ wsUrl) model.ws
+          |> asWsIn model
+          |> withCmd (WS.makeOpenWithKey wsKey wsUrl |> send model)
+      )
+      model.route
+  -- GameStart -> 
+
   Close ->
     appendLog "Closing" model.ws
     |> asWsIn model
     |> withCmd (WS.makeClose wsKey |> send model)
   Process value ->
-    case PortFunnels.processValue funnelDict value model.ws.state model of
+    case PF.processValue funnelDict value model.ws.state model of
       Err error ->
         let ws = model.ws
         in { ws | error = Just error }
@@ -476,11 +483,8 @@ fileBorderRowView n =
     )
   )
 
-
-  -- WEBSOCKET
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
-
 
 doIsLoaded : WebSocket -> WebSocket
 doIsLoaded ws =
@@ -491,7 +495,6 @@ doIsLoaded ws =
     , wasLoaded = True
     }
   else ws
-
 
 socketHandler : Response -> State -> WebSocket -> (WebSocket, Cmd Msg)
 socketHandler response state m =
