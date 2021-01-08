@@ -11,19 +11,16 @@ import Matrix
 import Maybe.Extra as M
 import Result.Extra as R
 import Theme exposing (..)
-import View.Base exposing (AvailableMove, ChoosingPromotion)
+import View.Base exposing (..)
 import View.Tile exposing (..)
 
 type BoardAction
-  = SelectTile (V2, Maybe Piece)
+  = SelectTile V2
 
-type alias ModelBoard =
-  { board : Board
-  , maybeSelected : Maybe (V2, List (V2, AvailableMove))
-  , choosingPromotion : Maybe ChoosingPromotion
-  }
+type alias WithBoard a =
+  { a | board : Board }
 
-viewBoard : (BoardAction -> a) -> ModelBoard -> Html a
+viewBoard : (BoardAction -> a) -> WithBoard (GameInputs b) -> Html a
 viewBoard act m =
   let cp = M.isJust m.choosingPromotion
   in m.board

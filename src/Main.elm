@@ -24,6 +24,7 @@ import Maybe.Extra as M
 import PortFunnel.WebSocket as WS exposing (Response(..))
 import Result.Extra as R
 import Chess.Board exposing (..)
+import Screen.Multiplayer exposing (..)
 import Theme exposing (..)
 import Url as Url
 import Url.Parser exposing (Parser, (</>), (<?>), int, map, oneOf, parse, s, string)
@@ -34,6 +35,7 @@ import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
+import View.Game exposing (..)
 import Tuple2 as T
 
 handlers : List (Handler Model Msg)
@@ -215,102 +217,40 @@ update msg model = case msg of
             )
       )
     |> Result.withDefault (model |> withNoCmd)
-  BoardAction (SelectTile (v, mp)) -> R.unwrap model
-    (\g ->
-      let pl = gameTurn g
-      in case model.maybeSelected of
-        Nothing ->
-          Matrix.get v g.board
-          |> M.join
-          |> M.unwrap model
-            (\p  ->
-              if piecePlayer p == pl
-              then
-                { model
-                | maybeSelected
-                  = Just
-                    (v
-                    , List.concat
-                      [ pieceLegalMoves g v p
-                        |> List.map (Tuple.mapSecond AvailablePieceMove)
-                      , pawnLegalPromotionMoves v g
-                        |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
-                      ]
-                    )
-                }
-              else model
-            )
-        Just (s, ms) ->
-          if s == v
-          then { model | maybeSelected = Nothing }
-          else case L.find (\(x, _) -> x == v) ms of
-            Nothing ->
-              case Matrix.get v g.board |> M.join of
-                Nothing -> { model | maybeSelected = Nothing }
-                Just p  ->
-                  if piecePlayer p == pl
-                  then
-                    { model
-                    | maybeSelected
-                      = Just
-                        (v
-                        , List.concat
-                          [ pieceLegalMoves g v p
-                            |> List.map (Tuple.mapSecond AvailablePieceMove)
-                          , pawnLegalPromotionMoves v g
-                            |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
-                          ]
-                        )
-                    }
-                  else { model | maybeSelected = Nothing }
-            Just (_, a) ->
-              case a of
-                AvailablePieceMove m ->
-                  { model
-                  | gameState = tryMove m g
-                  , moves     = m :: model.moves
-                  , maybeSelected = Nothing
-                  }
-                AvailablePawnPromotionMove m ->
-                  { model
-                  | choosingPromotion = Just <| case m of
-                    PawnPromotionAdvance _ -> ChoosingPromotionAdvance
-                    PawnPromotionCapture _ d -> ChoosingPromotionCapture d
-                  }
-    ) model.gameState
+  BoardAction (SelectTile v) ->
+    R.unwrap
+      model
+      (\g ->
+        selectTile
+          v
+          { game = g
+          , player = White
+          , choosingPromotion = model.choosingPromotion
+          , maybeSelected = model.maybeSelected
+          }
+        |> (\nm ->
+          { model
+          | gameState = Result.Ok nm.game
+          , choosingPromotion = nm.choosingPromotion
+          , maybeSelected = nm.maybeSelected
+          })
+      )
+      model.gameState
     |> withNoCmd
   ChoosePromotion pr -> R.unwrap model
     (\g ->
-      let pl = gameTurn g
-      in case model.choosingPromotion of
-        Nothing -> model
-        Just cp ->
-          case model.maybeSelected of
-            Nothing -> model
-            Just (v, ms) ->
-              let f = Tuple.first v
-              in case cp of
-                ChoosingPromotionAdvance   ->
-                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance f
-                      ns = tryMove m g
-                  in
-                    { model
-                    | gameState = ns
-                    , moves     = m :: model.moves
-                    , maybeSelected = Nothing 
-                    , choosingPromotion = Nothing
-                    }
-                ChoosingPromotionCapture d ->
-                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d
-                      ns = tryMove m g
-                  in
-                    { model
-                    | gameState = ns
-                    , moves     = m :: model.moves
-                    , maybeSelected = Nothing 
-                    , choosingPromotion = Nothing
-                    }
-
+      choosePromotion
+        pr
+        { game = g
+        , choosingPromotion = model.choosingPromotion
+        , maybeSelected = model.maybeSelected
+        }
+      |> (\nm ->
+          { model
+          | gameState = Result.Ok nm.game
+          , choosingPromotion = nm.choosingPromotion
+          , maybeSelected = nm.maybeSelected
+          })
     ) model.gameState
     |> withNoCmd
 
@@ -376,7 +316,7 @@ mainView model =
       , R.unwrap
           blank
           (\g -> div []
-            [ text <| "Turn " ++ Debug.toString (gameTurn g)
+            [ text <| "Model " ++ Debug.toString model
             , div
               [ style "margin" "1em"
               , style "border" "1px solid black"

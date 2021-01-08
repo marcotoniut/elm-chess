@@ -23,6 +23,7 @@ import View.Base exposing (..)
 import View.Board exposing (..)
 import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
+import View.Game exposing (choosePromotion)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 
@@ -81,7 +82,7 @@ update msg model = case msg of
       |> List.tail
       |> Maybe.withDefault []
     }
-  BoardAction (SelectTile (v, mp)) -> R.unwrap model
+  BoardAction (SelectTile v) -> R.unwrap model
     (\g ->
       let pl = gameTurn g
       in case model.maybeSelected of
@@ -146,36 +147,18 @@ update msg model = case msg of
     ) model.gameState
   ChoosePromotion pr -> R.unwrap model
     (\g ->
-      let pl = gameTurn g
-      in case model.choosingPromotion of
-        Nothing -> model
-        Just cp ->
-          case model.maybeSelected of
-            Nothing -> model
-            Just (v, ms) ->
-              let f = Tuple.first v
-              in case cp of
-                ChoosingPromotionAdvance   ->
-                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance f
-                      ns = tryMove m g
-                  in
-                    { model
-                    | gameState = ns
-                    , moves     = m :: model.moves
-                    , maybeSelected = Nothing 
-                    , choosingPromotion = Nothing
-                    }
-                ChoosingPromotionCapture d ->
-                  let m  = PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d
-                      ns = tryMove m g
-                  in
-                    { model
-                    | gameState = ns
-                    , moves     = m :: model.moves
-                    , maybeSelected = Nothing 
-                    , choosingPromotion = Nothing
-                    }
-
+      choosePromotion
+        pr
+        { game = g
+        , choosingPromotion = model.choosingPromotion
+        , maybeSelected = model.maybeSelected
+        }
+      |> (\nm ->
+          { model
+          | gameState = Result.Ok nm.game
+          , choosingPromotion = nm.choosingPromotion
+          , maybeSelected = nm.maybeSelected
+          })
     ) model.gameState
 
 
