@@ -11,6 +11,7 @@ import Matrix
 import Maybe.Extra as M
 import Theme exposing (..)
 import View.Base exposing (..)
+import View.Common exposing (..)
 
 type TileInteraction
   = TileSelected
@@ -25,18 +26,14 @@ tileView select b t i =
     [ style "position" "relative"
     , style "backgroundColor"
       <| if (modBy 2 (f + r) == 0) then darkSpaceColor else lightSpaceColor
-    , style "width" (intToPx tileSize)
+    , style "width"  (intToPx tileSize)
     , style "height" (intToPx tileSize)
     , onClick <| select v
     ]
     [ div
       (List.concat
-        [ [ style "position" "absolute"
-          , style "bottom" "0"
-          , style "left" "0"
-          , style "right" "0"
-          , style "top" "0"
-          ]
+        [ [ style "position" "absolute" ]
+        , expandedStyles
         , case i of
           TileSelected  ->
             [ style "backgroundColor" "mediumvioletred"

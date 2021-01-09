@@ -72,19 +72,18 @@ type alias WebSocket =
   }
 
 type alias Model =
-  { input : String
-  , initialBoard : Board
-  , moves : List PieceMove
-  , gameState : Result PlayError Game
-  , maybeSelected : Maybe (V2, List (V2, AvailableMove))
-  , choosingPromotion : Maybe ChoosingPromotion
-  -- , channel : String
-  -- , navKey : Nav.Key
-  , route : Maybe Route
-  -- , player : Maybe String
-  , opponent : Maybe String
-  , ws : WebSocket
-  }
+  GameInputs (
+    { input : String
+    , initialBoard : Board
+    , gameState : Result PlayError Game
+    -- , channel : String
+    -- , navKey : Nav.Key
+    , route : Maybe Route
+    -- , player : Maybe String
+    , opponent : Maybe String
+    , ws : WebSocket
+    }
+  )
 
 setWs : WebSocket -> { a | ws : WebSocket } -> { a | ws : WebSocket }
 setWs ws a = { a | ws = ws }
@@ -131,7 +130,6 @@ init _ url _ =
           , whiteCastlingAvailable = castlingEnabled
           }
         , input = ""
-        , moves = []
         , maybeSelected = Nothing
         , choosingPromotion = Nothing
         , route = parse routeParser url
@@ -184,8 +182,6 @@ update msg model = case msg of
           |> withCmd (WS.makeOpenWithKey wsKey wsUrl |> send model)
       )
       model.route
-  -- GameStart -> 
-
   Close ->
     appendLog "Closing" model.ws
     |> asWsIn model
@@ -203,8 +199,7 @@ update msg model = case msg of
     model.gameState
     |> Result.andThen
       (\g ->
-        let an = toAN m g |> Result.toMaybe
-        in play [ m ] g
+        play [ m ] g
           |> Result.map
             (\ng ->
               model.ws
@@ -213,7 +208,7 @@ update msg model = case msg of
               |> M.unwrap
                 withNoCmd
                 (WS.makeSend wsKey >> send model >> withCmd)
-                an
+                (toAN m g |> Result.toMaybe)
             )
       )
     |> Result.withDefault (model |> withNoCmd)

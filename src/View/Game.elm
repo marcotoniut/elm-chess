@@ -32,10 +32,9 @@ resetInputs a =
   , maybeSelected = Nothing
   }
 
-choosePromotion : PawnPromotion ->  WithGame (GameInputs a) ->  WithGame (GameInputs a)
+choosePromotion : PawnPromotion ->  HasGame (GameInputs a) ->  HasGame (GameInputs a)
 choosePromotion pr m =
-  let pl = gameTurn m.game
-  in case m.choosingPromotion of
+  case m.choosingPromotion of
     Nothing -> m
     Just cp ->
       case m.maybeSelected of

@@ -833,13 +833,9 @@ type alias Board = Matrix.Matrix (Maybe Piece)
 initBoard : Board
 initBoard = Matrix.repeat (8, 8) Nothing
 
-type alias CastlingAvailable =
-  { kingSide  : Bool
-  , queenSide : Bool
-  }
-
 type alias HasQueenSide a = { a | queenSide : Bool }
 type alias HasKingSide  a = { a | kingSide : Bool }
+type alias CastlingAvailable = HasKingSide (HasQueenSide {})
 
 asQueenSideIn : HasQueenSide a -> Bool -> HasQueenSide a
 asQueenSideIn a s = { a | queenSide = s }
@@ -865,26 +861,27 @@ castlingDisabled =
   , queenSide = False
   }
 
-type alias Move =
-  { move : PieceMove
-  , board : Board
-  , whiteCastlingAvailable : CastlingAvailable
-  , blackCastlingAvailable : CastlingAvailable
-  }
+type alias HasBoard a =
+  { a | board : Board }
 
-type alias Game =
-  { board : Board
-  , moves : List Move
+type alias Move = HasBoard (
+  { move : PieceMove
   , whiteCastlingAvailable : CastlingAvailable
   , blackCastlingAvailable : CastlingAvailable
-  }
+  })
 
 type alias HasWhiteCastlingAvailable a = { a | whiteCastlingAvailable : CastlingAvailable }
+type alias HasBlackCastlingAvailable a = { a | blackCastlingAvailable : CastlingAvailable }
+type alias Game =
+  HasBoard (
+  HasWhiteCastlingAvailable (
+  HasBlackCastlingAvailable (
+    { moves : List Move }
+  )))
+
 
 asWhiteCastlingAvailableIn : HasWhiteCastlingAvailable a -> CastlingAvailable -> HasWhiteCastlingAvailable a
 asWhiteCastlingAvailableIn a s = { a | whiteCastlingAvailable = s }
-
-type alias HasBlackCastlingAvailable a = { a | blackCastlingAvailable : CastlingAvailable }
 
 asBlackCastlingAvailableIn : HasBlackCastlingAvailable a -> CastlingAvailable -> HasBlackCastlingAvailable a
 asBlackCastlingAvailableIn a s = { a | blackCastlingAvailable = s }
@@ -1302,5 +1299,5 @@ gameStatus pl g
             else Check
     )
 
-showTile : (Int, Int) -> String
+showTile : V2 -> String
 showTile (f, r) = intToAlphabet f ++ String.fromInt (r + 1)

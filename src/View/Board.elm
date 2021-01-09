@@ -17,10 +17,10 @@ import View.Tile exposing (..)
 type BoardAction
   = SelectTile V2
 
-type alias WithBoard a =
-  { a | board : Board }
+-- shroudView : (p -> Bool) -> (p -> [] -> [ Html a ]) -> Html a
+-- shroudView predicate view =
 
-viewBoard : (BoardAction -> a) -> WithBoard (GameInputs b) -> Html a
+viewBoard : (BoardAction -> a) -> HasBoard (GameInputs b) -> Html a
 viewBoard act m =
   let cp = M.isJust m.choosingPromotion
   in m.board
@@ -30,25 +30,26 @@ viewBoard act m =
       [ style "margin" "0 auto"
       , style "display" "flex"
       ]
-      (List.concat
-        [ [ rankBorderCellView r ]
+      (let ranksEl = [ rankBorderCellView r ]
+      in List.concat
+        [ ranksEl
         , List.indexedMap
           (\f mp ->
             let v = (f, r)
             in m.maybeSelected
-              |> M.unwrap
-                TileCleared
-                (\(s, ls) ->
-                  if v == s
-                  then TileSelected
-                  else case L.find (\(vm, _) -> vm == v) ls of
-                    Nothing     -> TileCleared
-                    Just (_, a) -> TileChecked a
-                )
-              |> tileView (SelectTile >> act) m.board (v, mp)
+            |> M.unwrap
+              TileCleared
+              (\(s, ls) ->
+                if v == s
+                then TileSelected
+                else case L.find (\(vm, _) -> vm == v) ls of
+                  Nothing     -> TileCleared
+                  Just (_, a) -> TileChecked a
+              )
+            |> tileView (SelectTile >> act) m.board (v, mp)
           )
           xs
-        , [ rankBorderCellView r ]
+        , ranksEl
         ]
       )
     )
@@ -71,7 +72,9 @@ viewBoard act m =
     |> div
       [ style "position" "relative"
       , style "border" "none"
-      , if cp then style "pointer-events" "none" else emptyAttribute
+      , if cp
+        then style "pointer-events" "none"
+        else emptyAttribute
       ]
 
 rankBorderCellView : Int -> Html a
@@ -84,7 +87,6 @@ rankBorderCellView i =
   , style "background-color" borderColor
   ]
   [ text <| String.fromInt <| i + 1 ]
-
 
 fileBorderRowView : Int -> Html a
 fileBorderRowView n =

@@ -11,14 +11,14 @@ type AvailableMove
   = AvailablePieceMove PieceMove
   | AvailablePawnPromotionMove PawnPromotionMove
 
-type alias WithPlayer a =
+type alias HasPlayer a =
   { a | player : Player }
 
-type alias WithGame a =
+type alias HasGame a =
   { a | game : Game }
 
-type alias WithMaybeSelected a =
+type alias HasMaybeSelected a =
   { a | maybeSelected : Maybe (V2, List (V2, AvailableMove)) }
 
-type alias GameInputs a = WithMaybeSelected
+type alias GameInputs a = HasMaybeSelected
   ({ a | choosingPromotion : Maybe ChoosingPromotion })

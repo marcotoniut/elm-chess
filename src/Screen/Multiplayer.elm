@@ -19,55 +19,56 @@ import View.Tile exposing (..)
 type GameAction
   = BoardAction BoardAction
 
-selectTile : V2 -> WithGame (WithPlayer (GameInputs a)) -> WithGame (WithPlayer (GameInputs a))
+selectTile : V2 -> HasGame (HasPlayer (GameInputs a)) -> HasGame (HasPlayer (GameInputs a))
 selectTile v m =
   let turn = gameTurn m.game
-  in if turn == m.player
-  then case m.maybeSelected of
+  in if turn /= m.player
+  then m
+  else case m.maybeSelected of
     Nothing ->
       Matrix.get v m.game.board
       |> M.join
-      |> M.unwrap m
+      |> M.filter (\p -> piecePlayer p == turn)
+      |> M.unwrap
+        m
         (\p  ->
-          if piecePlayer p == turn
-          then
-            { m
-            | maybeSelected
-              = Just
-                (v
-                , List.concat
-                  [ pieceLegalMoves m.game v p
-                    |> List.map (Tuple.mapSecond AvailablePieceMove)
-                  , pawnLegalPromotionMoves v m.game
-                    |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
-                  ]
-                )
-            }
-          else m
+          { m
+          | maybeSelected
+            = Just
+              (v
+              , List.concat
+                [ pieceLegalMoves m.game v p
+                  |> List.map (Tuple.mapSecond AvailablePieceMove)
+                , pawnLegalPromotionMoves v m.game
+                  |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
+                ]
+              )
+          }
         )
     Just (s, ms) ->
       if s == v
       then { m | maybeSelected = Nothing }
       else case L.find (\(x, _) -> x == v) ms of
         Nothing ->
-          case Matrix.get v m.game.board |> M.join of
-            Nothing -> { m | maybeSelected = Nothing }
-            Just p  ->
-              if piecePlayer p == turn
-              then
-                { m
-                | maybeSelected
-                  = Just
-                    (v
-                    , List.concat
-                      [ pieceLegalMoves m.game v p
-                        |> List.map (Tuple.mapSecond AvailablePieceMove)
-                      , pawnLegalPromotionMoves v m.game
-                        |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
-                      ]
-                    )
-                }
-              else { m | maybeSelected = Nothing }
+          Matrix.get v m.game.board
+          |> M.join
+          |> M.filter (\p -> piecePlayer p == turn)
+          |> M.unwrap
+            ({ m | maybeSelected = Nothing })
+            (\p ->
+              { m
+              | maybeSelected
+                = Just
+                  (v
+                  , List.concat
+                    [ pieceLegalMoves m.game v p
+                      |> List.map (Tuple.mapSecond AvailablePieceMove)
+                    , pawnLegalPromotionMoves v m.game
+                      |> List.map (Tuple.mapSecond AvailablePawnPromotionMove)
+                    ]
+                  )
+              }
+            )
         Just (_, a) ->
           case a of
             AvailablePieceMove x ->
@@ -86,9 +87,8 @@ selectTile v m =
                 PawnPromotionAdvance _   -> ChoosingPromotionAdvance
                 PawnPromotionCapture _ d -> ChoosingPromotionCapture d
               }
-  else m
 
-viewGame : (GameAction -> a) -> WithGame (GameInputs b) -> Html a
+viewGame : (GameAction -> a) -> HasGame (GameInputs b) -> Html a
 viewGame act m = viewBoard
   (BoardAction >> act)
   { board = m.game.board
