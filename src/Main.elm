@@ -4,7 +4,6 @@ import Alphabet exposing (intToAlphabet)
 import Array
 import Browser
 import Browser.Navigation as Navigation
-import Basics.Extra as B
 import Direction exposing (..)
 import Chess.AlgebraicNotation exposing (..)
 import Chess.Base exposing (..)
@@ -36,6 +35,7 @@ import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 import View.Game exposing (..)
+import WebSocket exposing (..)
 import Tuple2 as T
 
 handlers : List (Handler Model Msg)
@@ -63,13 +63,6 @@ getCmdPort n m = PF.getCmdPort Process n m.ws.useSimulator
 cmdPort : Value -> Cmd Msg
 cmdPort = PF.getCmdPort Process "" False
 
-type alias WebSocket =
-  { log : List String
-  , useSimulator : Bool
-  , wasLoaded : Bool
-  , state : State
-  , error : Maybe String
-  }
 
 type alias Model =
   GameInputs (
@@ -85,19 +78,9 @@ type alias Model =
     }
   )
 
-setWs : WebSocket -> { a | ws : WebSocket } -> { a | ws : WebSocket }
-setWs ws a = { a | ws = ws }
-
-appendLog : i -> { a | log : List i } -> { a | log : List i }
-appendLog i a = { a | log = i :: a.log }
-
-asWsIn : { a | ws : WebSocket } -> WebSocket -> { a | ws : WebSocket }
-asWsIn = B.flip setWs
-
 consWsUrl : String -> String -> String
 consWsUrl channel name = "ws://localhost:8080/channel/" ++ channel ++ "?name=" ++ name
 -- wsUrl _ _ = "wss://echo.websocket.org"
-
 
 wsKey : String
 wsKey = "socket"
@@ -114,13 +97,7 @@ routeParser =
 
 init : flags -> Url.Url -> Navigation.Key -> (Model, Cmd Msg)
 init _ url _ =
-  let ws =
-        { log = []
-        , useSimulator = False
-        , wasLoaded = False
-        , state = PF.initialState
-        , error = Nothing
-        }
+  let ws = initWebSocket
       model =
         { initialBoard = initBoard
         , gameState = Result.Ok 
@@ -200,16 +177,16 @@ update msg model = case msg of
     |> Result.andThen
       (\g ->
         play [ m ] g
-          |> Result.map
-            (\ng ->
-              model.ws
-              |> appendLog ("Sending \"" ++ Debug.toString m ++ "\"")
-              |> asWsIn { model | gameState = Result.Ok ng }
-              |> M.unwrap
-                withNoCmd
-                (WS.makeSend wsKey >> send model >> withCmd)
-                (toAN m g |> Result.toMaybe)
-            )
+        |> Result.map
+          (\ng ->
+            model.ws
+            |> appendLog ("Sending \"" ++ Debug.toString m ++ "\"")
+            |> asWsIn { model | gameState = Result.Ok ng }
+            |> M.unwrap
+              withNoCmd
+              (WS.makeSend wsKey >> send model >> withCmd)
+              (toAN m g |> Result.toMaybe)
+          )
       )
     |> Result.withDefault (model |> withNoCmd)
   BoardAction (SelectTile v) ->
@@ -338,16 +315,6 @@ mainView model =
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
 
-doIsLoaded : WebSocket -> WebSocket
-doIsLoaded ws =
-  if not ws.wasLoaded && WS.isLoaded ws.state.websocket
-  then
-    { ws
-    | useSimulator = False
-    , wasLoaded = True
-    }
-  else ws
-
 socketHandler : Response -> State -> WebSocket -> (WebSocket, Cmd Msg)
 socketHandler response state m =
   let model = doIsLoaded
@@ -382,18 +349,3 @@ socketHandler response state m =
         model
         |> appendLog (Debug.toString xs)
         |> withNoCmd
-
-closedString : WS.ClosedCode -> Bool -> Bool -> String
-closedString code wasClean expected
-  = "code: "
-  ++ WS.closedCodeToString code
-  ++ ", "
-  ++ (if wasClean
-      then "clean"
-      else "not clean"
-      )
-  ++ ", "
-  ++ (if expected
-      then "expected"
-      else "NOT expected"
-      )
