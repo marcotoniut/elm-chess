@@ -88,8 +88,8 @@ selectTile v m =
                 PawnPromotionCapture _ d -> ChoosingPromotionCapture d
               }
 
-viewGame : (GameAction -> a) -> HasGame (GameInputs b) -> Html a
-viewGame act m = viewBoard
+gameView : (GameAction -> a) -> HasGame (GameInputs b) -> Html a
+gameView act m = boardView
   (BoardAction >> act)
   { board = m.game.board
   , choosingPromotion = m.choosingPromotion

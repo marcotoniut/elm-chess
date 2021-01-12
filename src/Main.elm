@@ -1,42 +1,37 @@
 module Main exposing (..)
 
 import Alphabet exposing (intToAlphabet)
-import Array
 import Browser
 import Browser.Navigation as Navigation
-import Direction exposing (..)
 import Chess.AlgebraicNotation exposing (..)
 import Chess.Base exposing (..)
 import Chess.Composition exposing (standardComposition, castlingComposition)
 import Cmd.Extra exposing (addCmd, addCmds, withCmd, withCmds, withNoCmd)
+import Chess.Board exposing (..)
+import Comm.Message exposing (..)
 import Component exposing (blank, emptyAttribute)
 import Debug
 import Html exposing (Html, a, button, br, node, div, ul, li, span, text, input)
 import Html.Attributes exposing (width, height, style, disabled, title)
 import Html.Events exposing (onInput, onClick)
+import Json.Decode as JD
 import Json.Encode exposing (Value)
 import Lib.PortFunnels exposing (FunnelDict, Handler(..), State)
 import Lib.PortFunnels as PF
-import List.Extra as L
-import Matrix
 import Maybe.Extra as M
 import PortFunnel.WebSocket as WS exposing (Response(..))
 import Result.Extra as R
-import Chess.Board exposing (..)
 import Screen.Multiplayer exposing (..)
-import Theme exposing (..)
 import Url as Url
 import Url.Parser exposing (Parser, (</>), (<?>), int, map, oneOf, parse, s, string)
 import Url.Parser.Query as Query
 import View.Base exposing (..)
 import View.Board exposing (..)
-import View.Tile exposing (..)
 import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 import View.Game exposing (..)
 import WebSocket exposing (..)
-import Tuple2 as T
 
 handlers : List (Handler Model Msg)
 handlers =
@@ -248,7 +243,7 @@ mainView model =
       ([ fileBorderRowView 8
       , model.gameState
         |> Result.map
-          (\g -> viewBoard BoardAction
+          (\g -> boardView BoardAction
             { board = g.board
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected
@@ -323,13 +318,21 @@ socketHandler response state m =
         , error = Nothing
         }
   in case response of
-    WS.MessageReceivedResponse { message } ->
-      model
-      |> appendLog ("Received \"" ++ message ++ "\"")
-      |> withNoCmd
+    -- WS.MessageReceivedResponse { message } ->
+    WS.MessageReceivedResponse { key, message } ->
+      JD.decodeString wsMessageDecoder message
+      |> R.unwrap 
+        (model |> withNoCmd)
+        (\r ->
+          model
+          -- |> appendLog ("Received \"" ++ message ++ "\"")
+          |> appendLog ("Received " ++ Debug.toString r)
+          |> withNoCmd
+        )
     WS.ConnectedResponse r ->
       model
-      |> appendLog ("Connected: " ++ r.description)
+      |> appendLog ("Connected: " ++ Debug.toString r)
+      -- |> appendLog ("Connected: " ++ r.description)
       |> withNoCmd
     WS.ClosedResponse { code, wasClean, expected } ->
       model
@@ -343,7 +346,8 @@ socketHandler response state m =
       [] -> model |> withNoCmd
       [ ReconnectedResponse r ] ->
         model
-        |> appendLog ("Reconnected: " ++ r.description)
+        |> appendLog ("Connected: " ++ Debug.toString r)
+        -- |> appendLog ("Reconnected: " ++ r.description)
         |> withNoCmd
       xs ->
         model

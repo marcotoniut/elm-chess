@@ -20,8 +20,8 @@ type BoardAction
 -- shroudView : (p -> Bool) -> (p -> [] -> [ Html a ]) -> Html a
 -- shroudView predicate view =
 
-viewBoard : (BoardAction -> a) -> HasBoard (GameInputs b) -> Html a
-viewBoard act m =
+boardView : (BoardAction -> a) -> HasBoard (GameInputs b) -> Html a
+boardView act m =
   let cp = M.isJust m.choosingPromotion
   in m.board
   |> Matrix.toList

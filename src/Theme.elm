@@ -12,7 +12,7 @@ blackPlayerColor : String
 blackPlayerColor = "#000000" -- (0,0,0)
 
 intToPx : Int -> String
-intToPx = String.fromInt >> (\s -> s ++ "px")
+intToPx = String.fromInt >> \s -> s ++ "px"
 
 tileSize : Int
 tileSize = 70
