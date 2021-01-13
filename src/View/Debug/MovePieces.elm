@@ -1,11 +1,8 @@
 module View.Debug.MovePieces exposing (..)
 
 import Chess.Base exposing (..)
-import Direction exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (..)
-import Result.Extra as R
 
 moveText : PieceMove -> Html a
 moveText = Debug.toString >> text 

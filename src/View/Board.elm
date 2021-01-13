@@ -9,7 +9,6 @@ import Html.Attributes exposing (..)
 import List.Extra as L
 import Matrix
 import Maybe.Extra as M
-import Result.Extra as R
 import Theme exposing (..)
 import View.Base exposing (..)
 import View.Tile exposing (..)

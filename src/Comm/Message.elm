@@ -17,18 +17,18 @@ playerDecoder =
 
 type WsMessage
   = WsString String
-  | JoinedAsWhite
+  | WsJoinedAsWhite
     { channelId : String
     , player : Player
     }
-  | GameStart
+  | WsGameStart
     { channelId : String
     , white : Player
     , black : Player
     }
-  | PlayerJoined Player
-  | PlayerLeft Player
-  | ANPieceMove String
+  | WsPlayerJoined Player
+  | WsPlayerLeft Player
+  | WsANPieceMove String
 
 
 wsStringDecoder : Decoder WsMessage
@@ -38,7 +38,7 @@ wsStringDecoder =
 joinedAsWhiteDecoder : Decoder WsMessage
 joinedAsWhiteDecoder =
   JD.map2
-    (\x y -> JoinedAsWhite
+    (\x y -> WsJoinedAsWhite
       { channelId = x
       , player = y
       }
@@ -49,7 +49,7 @@ joinedAsWhiteDecoder =
 gameStartDecoder : Decoder WsMessage
 gameStartDecoder =
   JD.map3
-    (\x y z -> GameStart
+    (\x y z -> WsGameStart
       { channelId = x
       , white = y
       , black = z
@@ -61,15 +61,15 @@ gameStartDecoder =
 
 playerJoinedDecoder : Decoder WsMessage
 playerJoinedDecoder =
-  JD.map PlayerJoined playerDecoder
+  JD.map WsPlayerJoined playerDecoder
 
 playerLeftDecoder : Decoder WsMessage
 playerLeftDecoder =
-  JD.map PlayerLeft playerDecoder
+  JD.map WsPlayerLeft playerDecoder
 
 anPieceMoveDecoder : Decoder WsMessage
 anPieceMoveDecoder =
-  JD.map ANPieceMove JD.string
+  JD.map WsANPieceMove JD.string
 
 wsMessageDecoder : Decoder WsMessage
 wsMessageDecoder

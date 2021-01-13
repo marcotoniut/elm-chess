@@ -5,7 +5,6 @@ import Chess.Base exposing (..)
 import Direction exposing (..)
 import List.Extra as L
 import Matrix
-import Maybe
 import Maybe.Extra as M
 import Result.Extra as R
 

@@ -10,11 +10,11 @@ import Result.Extra as R
 moveText : PieceMove -> Html a
 moveText = Debug.toString >> text 
 
-moveButton : (PieceMove -> m) -> PieceMove -> Result PlayError Game -> Html m
+moveButton : (PieceMove -> m) -> PieceMove -> Result () Game -> Html m
 moveButton onClickHandle m rg =
   button
   ( [ [ onClick (onClickHandle m) ]
-    , Result.andThen (play [ m ]) rg
+    , Result.andThen (play [ m ] >> Result.mapError (always ())) rg
       |> R.unpack
         (\e ->
           [ disabled True
@@ -26,7 +26,7 @@ moveButton onClickHandle m rg =
   )
   [ moveText m ]
 
-moveCommandsView : (PieceMove -> m) -> Result PlayError Game -> Html m
+moveCommandsView : (PieceMove -> m) -> Result () Game -> Html m
 moveCommandsView onClickHandle s =
   let commandView = moveButton onClickHandle
   in div

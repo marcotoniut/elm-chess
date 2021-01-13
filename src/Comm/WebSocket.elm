@@ -1,4 +1,4 @@
-module WebSocket exposing (..)
+module Comm.WebSocket exposing (..)
 
 import Basics.Extra as B
 import Lib.PortFunnels exposing (FunnelDict, Handler(..), State)

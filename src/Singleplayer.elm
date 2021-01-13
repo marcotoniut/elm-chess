@@ -1,6 +1,5 @@
 module Singleplayer exposing (..)
 
-import Alphabet exposing (intToAlphabet)
 import Browser
 import Direction exposing (..)
 import Chess.Base exposing (..)
@@ -22,7 +21,6 @@ import View.Game exposing (choosePromotion)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 
--- MODEL
 type alias Model =
   { input : String
   , moves : List PieceMove
@@ -45,11 +43,9 @@ init =
   , choosingPromotion = Nothing
   }
 
--- MAIN
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
 
--- UPDATE
 type Msg
   = ChangeInput String
   | MovePiece PieceMove
@@ -195,7 +191,9 @@ view model =
         [ text "UNDO" ]
       , R.unwrap
           blank
-          (\g -> div []
+          (\g ->
+            div
+            []
             [ text <| "Turn " ++ Debug.toString (gameTurn g)
             -- , br [] []
             -- , text <| Debug.toString model
@@ -217,7 +215,7 @@ view model =
             ]
           )
           model.gameState
-      , moveCommandsView MovePiece model.gameState
+      , moveCommandsView MovePiece (Result.mapError (always ()) model.gameState)
       -- , movePiecesView
       ]
     ]

@@ -38,7 +38,6 @@ standardComposition =
   , Tile (7, 0) (Piece White Rook)
   ]
 
-
 castlingComposition : List Tile
 castlingComposition =
   [ Tile (0, 7) (Piece Black Rook)

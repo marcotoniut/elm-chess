@@ -1,6 +1,5 @@
 module View.PawnPromotion exposing (..)
 
-import Browser
 import Chess.Base exposing (..)
 import Html exposing (Html, button, br, node, div, img, ul, li, span, text, input)
 import Html.Attributes exposing (attribute, width, height, style, disabled, src, title)

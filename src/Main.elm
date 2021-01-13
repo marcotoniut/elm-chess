@@ -1,14 +1,11 @@
 module Main exposing (..)
 
-import Alphabet exposing (intToAlphabet)
 import Browser
 import Browser.Navigation as Navigation
-import Chess.AlgebraicNotation exposing (..)
 import Chess.Base exposing (..)
-import Chess.Composition exposing (standardComposition, castlingComposition)
 import Cmd.Extra exposing (addCmd, addCmds, withCmd, withCmds, withNoCmd)
-import Chess.Board exposing (..)
 import Comm.Message exposing (..)
+import Comm.WebSocket exposing (..)
 import Component exposing (blank, emptyAttribute)
 import Debug
 import Html exposing (Html, a, button, br, node, div, ul, li, span, text, input)
@@ -19,6 +16,7 @@ import Json.Encode exposing (Value)
 import Lib.PortFunnels exposing (FunnelDict, Handler(..), State)
 import Lib.PortFunnels as PF
 import Maybe.Extra as M
+import Model exposing (..)
 import PortFunnel.WebSocket as WS exposing (Response(..))
 import Result.Extra as R
 import Screen.Multiplayer exposing (..)
@@ -31,7 +29,6 @@ import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 import View.Game exposing (..)
-import WebSocket exposing (..)
 
 handlers : List (Handler Model Msg)
 handlers =
@@ -40,11 +37,6 @@ handlers =
 
 subscriptions : m -> Sub Msg
 subscriptions = PF.subscriptions Process
--- subscriptions = 
---   Sub.batch
---     [ subPort Receive
---     , parseReturn Process
---     ]
 
 funnelDict : FunnelDict Model Msg
 funnelDict = PF.makeFunnelDict handlers getCmdPort
@@ -63,7 +55,7 @@ type alias Model =
   GameInputs (
     { input : String
     , initialBoard : Board
-    , gameState : Result PlayError Game
+    , gameState : GameState
     -- , channel : String
     -- , navKey : Nav.Key
     , route : Maybe Route
@@ -95,12 +87,7 @@ init _ url _ =
   let ws = initWebSocket
       model =
         { initialBoard = initBoard
-        , gameState = Result.Ok 
-          { board = composeBoard initBoard standardComposition
-          , moves = []
-          , blackCastlingAvailable = castlingEnabled
-          , whiteCastlingAvailable = castlingEnabled
-          }
+        , gameState = GameIdling
         , input = ""
         , maybeSelected = Nothing
         , choosingPromotion = Nothing
@@ -117,7 +104,6 @@ init _ url _ =
         |> asWsIn model
         |> withCmd (WS.makeOpenWithKey wsKey wsUrl |> send model)
     )
-    -- (Maybe.map2 Tuple.pair model.route model.player)
     model.route
 
 main : Program () Model Msg
@@ -138,8 +124,6 @@ type Msg
   | Process Value
   | Close
   | Connect
-  -- | GameStart
-
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
@@ -168,57 +152,61 @@ update msg model = case msg of
       Ok res -> res
   ChangeInput i -> { model | input = i } |> withNoCmd
   MovePiece m   ->
-    model.gameState
-    |> Result.andThen
-      (\g ->
-        play [ m ] g
-        |> Result.map
-          (\ng ->
-            model.ws
-            |> appendLog ("Sending \"" ++ Debug.toString m ++ "\"")
-            |> asWsIn { model | gameState = Result.Ok ng }
-            |> M.unwrap
-              withNoCmd
-              (WS.makeSend wsKey >> send model >> withCmd)
-              (toAN m g |> Result.toMaybe)
+    (case model.gameState of
+      GameInProgress s -> 
+        play [ m ] s.game
+        |> R.unwrap
+          model
+          (\g ->
+            { model
+            | gameState = GameInProgress
+              { s | game = g }
+            }
           )
-      )
-    |> Result.withDefault (model |> withNoCmd)
+      _ -> model
+    )
+    |> withNoCmd
   BoardAction (SelectTile v) ->
-    R.unwrap
-      model
-      (\g ->
+    (case model.gameState of
+      GameInProgress state ->
         selectTile
           v
-          { game = g
+          { game = state.game
           , player = White
           , choosingPromotion = model.choosingPromotion
           , maybeSelected = model.maybeSelected
           }
         |> (\nm ->
           { model
-          | gameState = Result.Ok nm.game
+          | gameState = GameInProgress
+            { state
+            | game = nm.game
+            }
           , choosingPromotion = nm.choosingPromotion
           , maybeSelected = nm.maybeSelected
           })
-      )
-      model.gameState
-    |> withNoCmd
-  ChoosePromotion pr -> R.unwrap model
-    (\g ->
-      choosePromotion
-        pr
-        { game = g
-        , choosingPromotion = model.choosingPromotion
-        , maybeSelected = model.maybeSelected
-        }
-      |> (\nm ->
-          { model
-          | gameState = Result.Ok nm.game
-          , choosingPromotion = nm.choosingPromotion
-          , maybeSelected = nm.maybeSelected
-          })
-    ) model.gameState
+      _ -> model
+    ) |> withNoCmd
+  ChoosePromotion pr -> 
+    (case model.gameState of
+      GameInProgress state ->
+        choosePromotion
+          pr
+          { game = state.game
+          , choosingPromotion = model.choosingPromotion
+          , maybeSelected = model.maybeSelected
+          }
+        |> (\nm ->
+            { model
+            | gameState = GameInProgress
+              { state
+              | game = nm.game
+              }
+            , choosingPromotion = nm.choosingPromotion
+            , maybeSelected = nm.maybeSelected
+            })
+      _ -> model
+    )
     |> withNoCmd
 
 view : Model -> Browser.Document Msg
@@ -230,7 +218,6 @@ view model =
     ]
   }
 
--- VIEW
 mainView : Model -> Html Msg
 mainView model =
   div
@@ -241,16 +228,14 @@ mainView model =
       , style "flex-direction" "column"
       ]
       ([ fileBorderRowView 8
-      , model.gameState
-        |> Result.map
-          (\g -> boardView BoardAction
-            { board = g.board
+      , case model.gameState of
+        GameInProgress { game } ->
+          boardView BoardAction
+            { board = game.board
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected
             }
-          )
-        |> Result.mapError (\e -> div [] [ text (Debug.toString e) ])
-        |> R.merge
+        x -> div [] [ text (Debug.toString x) ]
       , fileBorderRowView 8
       ]
       |> List.append
@@ -280,32 +265,36 @@ mainView model =
         , div [] [ text <| "WS Log " ++ Debug.toString model.ws.log ]
         , div [] [ text <| "WS Error " ++ Debug.toString model.ws.error ]
         ]
-      , R.unwrap
-          blank
-          (\g -> div []
-            [ text <| "Model " ++ Debug.toString model
-            , div
-              [ style "margin" "1em"
-              , style "border" "1px solid black"
-              ]
-              [ input
-                [ onInput ChangeInput
-                , style "backgroundColor" "lightyellow"
-                , style "border" "none"
-                , style "border-bottom" "1px solid black"
-                , style "border-radius" "0"
-                , style "box-sizing" "border-box"
-                , style "width" "100%"
-                ] []
-              , moveHistoryView g
-              ]
+      , case model.gameState of
+        GameInProgress { game } ->
+          div
+          []
+          [ text <| "Model " ++ Debug.toString model
+          , div
+            [ style "margin" "1em"
+            , style "border" "1px solid black"
             ]
-          )
-          model.gameState
-      , moveCommandsView MovePiece model.gameState
+            [ input
+              [ onInput ChangeInput
+              , style "backgroundColor" "lightyellow"
+              , style "border" "none"
+              , style "border-bottom" "1px solid black"
+              , style "border-radius" "0"
+              , style "box-sizing" "border-box"
+              , style "width" "100%"
+              ] []
+            , moveHistoryView game
+            ]
+          ]
+        _ -> blank
+      , moveCommandsView
+        MovePiece
+        (case model.gameState of
+          GameInProgress { game } -> Result.Ok game
+          _ -> Result.Err ()
+        )
       ]
     ]
-
 
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
@@ -324,7 +313,21 @@ socketHandler response state m =
       |> R.unwrap 
         (model |> withNoCmd)
         (\r ->
-          model
+          (case r of
+            WsString s -> model |> appendLog ("Received " ++ Debug.toString r)
+            WsJoinedAsWhite s -> model
+              -- { channelId : String
+              -- , player : Player
+              -- }
+            WsGameStart s -> model
+              -- { channelId : String
+              -- , white : Player
+              -- , black : Player
+              -- }
+            WsPlayerJoined pl -> model
+            WsPlayerLeft pl -> model
+            WsANPieceMove s -> model
+          )
           -- |> appendLog ("Received \"" ++ message ++ "\"")
           |> appendLog ("Received " ++ Debug.toString r)
           |> withNoCmd

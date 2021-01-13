@@ -7,7 +7,6 @@ import Html exposing (Html, button, br, node, div, ul, li, span, text, img, inpu
 import Html.Attributes exposing (attribute, style, disabled, src, title)
 import Html.Events exposing (onInput, onClick)
 import Icon exposing (pieceToIcon)
-import Matrix
 import Maybe.Extra as M
 import Theme exposing (..)
 import View.Base exposing (..)

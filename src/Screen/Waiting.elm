@@ -4,6 +4,7 @@ import Direction exposing (V2)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Matrix
+import Model exposing (..)
 import Theme exposing (..)
 import View.Board exposing (..)
 import View.Game exposing (..)

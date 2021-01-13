@@ -1,20 +1,14 @@
 module Screen.Multiplayer exposing (..)
 
-import Alphabet exposing (..)
 import Chess.Base exposing (..)
-import Component exposing (emptyAttribute)
 import Direction exposing (V2)
 import Html exposing (..)
-import Html.Attributes exposing (..)
 import List.Extra as L
 import Matrix
 import Maybe.Extra as M
 import Result.Extra as R
-import Theme exposing (..)
 import View.Base exposing (..)
 import View.Board exposing (..)
-import View.Game exposing (..)
-import View.Tile exposing (..)
 
 type GameAction
   = BoardAction BoardAction

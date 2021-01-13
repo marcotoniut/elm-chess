@@ -2,13 +2,10 @@ module Chess.Base exposing (..)
 
 import Alphabet exposing (intToAlphabet)
 import Direction exposing (..)
-import Html.Attributes exposing (kind)
 import Matrix
 import Maybe.Extra as M
 import Result.Extra as R
-import List
 import List.Extra as L
-import Tuple
 import Tuple2
 
 type Player = White | Black
