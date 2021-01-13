@@ -19,7 +19,9 @@ import Maybe.Extra as M
 import Model exposing (..)
 import PortFunnel.WebSocket as WS exposing (Response(..))
 import Result.Extra as R
+import Screen.Loading exposing (..)
 import Screen.Multiplayer exposing (..)
+import Screen.Waiting exposing (..)
 import Url as Url
 import Url.Parser exposing (Parser, (</>), (<?>), int, map, oneOf, parse, s, string)
 import Url.Parser.Query as Query
@@ -235,6 +237,8 @@ mainView model =
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected
             }
+        GameIdling -> loadingView
+        GameOnePlayer x -> waitingView x.white
         x -> div [] [ text (Debug.toString x) ]
       , fileBorderRowView 8
       ]

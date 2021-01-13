@@ -7,6 +7,7 @@ import Maybe.Extra as M
 import Result.Extra as R
 import List.Extra as L
 import Tuple2
+import Html.Attributes exposing (accesskey)
 
 type Player = White | Black
 player : a -> a -> Player -> a
@@ -40,7 +41,7 @@ type PawnPromotionMove
   = PawnPromotionAdvance Int
   | PawnPromotionCapture Int HorizontalDirection
 
-type KingInCheck = KingInCheck (List Tile)
+type KingInCheck = KingInCheck (List (PieceMove, Tile))
 
 type RegularMoveError
   = OutOfBounds V2
@@ -1024,9 +1025,10 @@ inKnightCheck pl b v = let check = inKnightOneCheck pl b v in
   |> List.filterMap identity
 
 
-inPawnOneCheck : Player -> Board -> V2 -> DiagonalDirection -> Maybe (DiagonalDirection, Tile)
+inPawnOneCheck : Player -> Board -> V2 -> HorizontalDirection -> Maybe (HorizontalDirection, Tile)
 inPawnOneCheck pl b v0 d =
-  let vf = translateDiagonal d v0
+  let hd = player S N pl
+      vf = translateDiagonal (turnDiagonal hd d) v0
   in Matrix.get vf b
     |> M.join
     -- |> M.filter (\p -> pl == piecePlayer p && Pawn == pieceType p)
@@ -1034,24 +1036,25 @@ inPawnOneCheck pl b v0 d =
     |> M.filter ((==) (Piece pl Pawn))
     |> Maybe.map (Tile vf >> Tuple.pair d)
 
-inPawnCheck : Player -> Board -> V2 -> List (DiagonalDirection, Tile)
-inPawnCheck pl b v = pl
-  |> player [ SE, SW ] [ NE, NW ]
+inPawnCheck : Player -> Board -> V2 -> List (HorizontalDirection, Tile)
+inPawnCheck pl b v =
+  [ Left, Right ]
   |> List.map (inPawnOneCheck pl b v)
   |> List.filterMap identity
 
-inCheck : Player -> Board -> V2 -> List Tile
+inCheck : Player -> Board -> V2 -> List (PieceMove, Tile)
 inCheck pl b v =
   Matrix.get v b
   |> M.join
   -- REVIEW
   |> M.filter (piecePlayer >> (==) pl)
   |> M.unwrap
-    [ inPawnCheck   pl b v |> List.map Tuple.second
-    , inKnightCheck pl b v |> List.map Tuple.second
-    , inDiagonalsCheck isDiagonalAttacker pl b v |> List.map Tuple.second
-    , inStraightsCheck isStraightAttacker pl b v |> List.map Tuple.second
-    , inKingCheck   pl b v |> List.map Tuple.second
+    [ inPawnCheck   pl b v |> List.map (Tuple.mapFirst (\x -> PawnPieceMove <| PawnCapture v x))
+    , inKnightCheck pl b v |> List.map (Tuple.mapFirst (\(x, y) -> KnightPieceMove <| KnightMove v x y))
+    , inBishopCheck pl b v |> List.map (Tuple.mapFirst (\(x, y) -> BishopPieceMove <| BishopMove v x y))
+    , inRookCheck   pl b v |> List.map (Tuple.mapFirst (\(x, y) -> RookPieceMove <| RookMove v x y))
+    , inQueenCheck  pl b v |> List.map (Tuple.mapFirst (\(x, y) -> QueenPieceMove <| QueenMove v x y))
+    , inKingCheck   pl b v |> List.map (Tuple.mapFirst (\x -> KingPieceMove <| KingMove v x))
     ]
     (always [])
   |> List.concat
@@ -1291,8 +1294,15 @@ gameStatus pl g
             let klms = kingLegalMoves vk g
             in if List.isEmpty klms
             then case cs of
-              c :: [] -> CheckMate -- TODO other ways of escaping Checkmate
-              _       -> CheckMate
+              (_, Tile v pi) :: [] ->
+                inCheck pl g.board v
+                |> List.foldl
+                  (\(m, t) acc -> if acc /= CheckMate
+                    then acc
+                    else R.unwrap Check (always acc) (tryMove m g)
+                  )
+                  CheckMate
+              _ -> CheckMate
             else Check
     )
 

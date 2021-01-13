@@ -51,8 +51,7 @@ toAN m g =
         PawnDoubleAdvance i -> Result.Ok <| showTile <| pawnDoubleAdvanceTarget pl i
         PawnCapture v h ->
           let vf = pawnCaptureTarget pl v h
-              dd = turnDiagonal (playerDirection pl) h
-              pc = inPawnOneCheck (opponent pl) g.board vf dd
+              pc = inPawnOneCheck (opponent pl) g.board vf h
           in if M.isJust pc
           then Result.Ok <| showTile v ++ captureFragment ++ showTile vf
           else Result.Ok <| captureFragment ++ showTile vf
@@ -74,8 +73,7 @@ toAN m g =
             PawnPromotionCapture f h ->
               let v0 = (translateHorizontal h f, promotionRank pl)
                   vf = pawnCaptureTarget pl v0 h
-                  dd = turnDiagonal (playerDirection pl) h
-                  pc = inPawnOneCheck pl g.board vf dd
+                  pc = inPawnOneCheck pl g.board vf h
               in if M.isJust pc
               then showTile v0 ++ captureFragment ++ showTile vf
               else captureFragment ++ showTile vf
