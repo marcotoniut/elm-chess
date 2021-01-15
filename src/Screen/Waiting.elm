@@ -1,5 +1,6 @@
 module Screen.Waiting exposing (..)
 
+import Chess.Base exposing (Player)
 import Direction exposing (V2)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -23,8 +24,8 @@ tileView (f, r) =
     []
   ]
 
-waitingView : GamePlayer -> Html a
-waitingView pl =
+waitingView : Player -> GamePlayer -> Html a
+waitingView pl gpl =
   Matrix.repeat (8, 8) ()
   |> Matrix.toList
   |> List.indexedMap

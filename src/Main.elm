@@ -3,6 +3,8 @@ module Main exposing (..)
 import Browser
 import Browser.Navigation as Navigation
 import Chess.Base exposing (..)
+import Chess.Board exposing (..)
+import Chess.Composition exposing (..)
 import Cmd.Extra exposing (addCmd, addCmds, withCmd, withCmds, withNoCmd)
 import Comm.Message exposing (..)
 import Comm.WebSocket exposing (..)
@@ -31,10 +33,11 @@ import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 import View.Game exposing (..)
+import Chess.AlgebraicNotation exposing (parseAN)
 
 handlers : List (Handler Model Msg)
 handlers =
-  [ WebSocketHandler (\r s m -> socketHandler r s m.ws |> Tuple.mapFirst (asWsIn m))
+  [ WebSocketHandler socketHandler
   ]
 
 subscriptions : m -> Sub Msg
@@ -115,7 +118,7 @@ main = Browser.application
   , view = view
   , subscriptions = subscriptions
   , onUrlRequest = (\_ -> Close)
-  , onUrlChange = (\_ -> Close)
+  , onUrlChange  = (\_ -> Close)
   }
 
 type Msg
@@ -124,8 +127,8 @@ type Msg
   | BoardAction BoardAction
   | ChoosePromotion PawnPromotion
   | Process Value
-  | Close
   | Connect
+  | Close
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
@@ -231,14 +234,14 @@ mainView model =
       ]
       ([ fileBorderRowView 8
       , case model.gameState of
-        GameInProgress { game } ->
-          boardView BoardAction
-            { board = game.board
+        GameIdling -> loadingView
+        GameOnePlayer  s -> waitingView s.player s.white
+        GameInProgress s ->
+          boardView s.player BoardAction
+            { board = s.game.board
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected
             }
-        GameIdling -> loadingView
-        GameOnePlayer x -> waitingView x.white
         x -> div [] [ text (Debug.toString x) ]
       , fileBorderRowView 8
       ]
@@ -303,60 +306,116 @@ mainView model =
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
 
-socketHandler : Response -> State -> WebSocket -> (WebSocket, Cmd Msg)
-socketHandler response state m =
-  let model = doIsLoaded
-        { m
+socketHandler : Response -> State -> Model -> (Model, Cmd Msg)
+socketHandler response state model =
+  let ws = model.ws
+      nws = doIsLoaded
+        { ws
         | state = state
         , error = Nothing
         }
   in case response of
-    -- WS.MessageReceivedResponse { message } ->
     WS.MessageReceivedResponse { key, message } ->
       JD.decodeString wsMessageDecoder message
       |> R.unwrap 
-        (model |> withNoCmd)
+        model
         (\r ->
-          (case r of
-            WsString s -> model |> appendLog ("Received " ++ Debug.toString r)
-            WsJoinedAsWhite s -> model
-              -- { channelId : String
-              -- , player : Player
-              -- }
-            WsGameStart s -> model
-              -- { channelId : String
-              -- , white : Player
-              -- , black : Player
-              -- }
-            WsPlayerJoined pl -> model
-            WsPlayerLeft pl -> model
-            WsANPieceMove s -> model
-          )
-          -- |> appendLog ("Received \"" ++ message ++ "\"")
+          nws
           |> appendLog ("Received " ++ Debug.toString r)
-          |> withNoCmd
+          |> asWsIn model
+          |> (\m -> case r of
+            WsString s -> m
+            WsJoinedAsWhite s ->
+              case m.gameState of
+                GameInProgress _ -> m
+                _ ->
+                  { m
+                  | gameState = GameOnePlayer
+                    { player = White
+                    , white = s.player
+                    }
+                  }
+            WsGameStart s ->
+              { m
+              | gameState = GameInProgress
+                { player = case m.gameState of
+                    GameOnePlayer _ -> Black
+                    _ -> White
+                , white = s.white
+                , black = s.black
+                , game = 
+                  { board = composeBoard initBoard standardComposition
+                  , moves = []
+                  , blackCastlingAvailable = castlingEnabled
+                  , whiteCastlingAvailable = castlingEnabled
+                  }
+                }
+              }
+            WsPlayerJoined pl -> m
+            WsPlayerLeft pl -> m
+            WsANPieceMove s ->
+              case m.gameState of
+                GameInProgress x ->
+                  let pl = gameTurn x.game
+                  in if pl == opponent x.player
+                  then
+                    parseAN pl x.game.board s
+                    |> R.unwrap
+                      m
+                      (\pm ->
+                        play [ pm ] x.game
+                        |> R.unwrap
+                          m
+                          (\g ->
+                            { m
+                            | gameState = GameInProgress
+                              { x | game = g }
+                            }
+                          )
+                      )
+                  else m
+                _ -> m
+          )
         )
+        |> withNoCmd
     WS.ConnectedResponse r ->
-      model
+      nws
       |> appendLog ("Connected: " ++ Debug.toString r)
-      -- |> appendLog ("Connected: " ++ r.description)
+      |> asWsIn model
       |> withNoCmd
     WS.ClosedResponse { code, wasClean, expected } ->
-      model
+      nws
       |> appendLog ("Closed, " ++ closedString code wasClean expected)
+      |> asWsIn model
+      |> (\m ->
+        case m.gameState of
+          GameInProgress x ->
+            { m
+            | gameState = GameFinished
+            }
+          _ ->
+            { m
+            | gameState = GameIdling
+            }
+        )
       |> withNoCmd
     WS.ErrorResponse error ->
-      model
+      nws
       |> appendLog (WS.errorToString error)
+      |> asWsIn model
       |> withNoCmd
     _ -> case WS.reconnectedResponses response of
-      [] -> model |> withNoCmd
+      [] ->
+        nws
+        |> asWsIn model
+        |> withNoCmd
       [ ReconnectedResponse r ] ->
-        model
-        |> appendLog ("Connected: " ++ Debug.toString r)
-        -- |> appendLog ("Reconnected: " ++ r.description)
+        nws
+        |> appendLog ("Reconnected: " ++ Debug.toString r)
+        |> asWsIn model
         |> withNoCmd
       xs ->
-        model
+        nws
         |> appendLog (Debug.toString xs)
+        |> asWsIn model
         |> withNoCmd

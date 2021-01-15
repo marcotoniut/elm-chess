@@ -166,7 +166,7 @@ view model =
       ([ fileBorderRowView 8
       , model.gameState
         |> Result.map
-          (\g -> boardView BoardAction
+          (\g -> boardView White BoardAction
             { board = g.board
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected

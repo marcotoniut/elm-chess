@@ -1,6 +1,6 @@
 module Model exposing (..)
 
-import Chess.Base exposing (Game, PlayError)
+import Chess.Base exposing (Game, Player, PlayError)
 
 type alias GamePlayer =
   { id : String
@@ -8,17 +8,20 @@ type alias GamePlayer =
   }
 
 type alias GameOnePlayerState =
-  { white : GamePlayer
+  { player : Player
+  , white : GamePlayer
   }
 
 type alias GameInProgressState =
-  { white : GamePlayer
+  { player : Player
+  , white : GamePlayer
   , black : GamePlayer
   , game : Game
   }
 
 type alias GameErrorState =
-  { error : PlayError
+  { player : Player
+  , error : PlayError
   }
 
 type GameState
