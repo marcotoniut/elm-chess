@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Browser.Navigation as Navigation
+import Chess.AlgebraicNotation exposing (toAN, parseAN)
 import Chess.Base exposing (..)
 import Chess.Board exposing (..)
 import Chess.Composition exposing (..)
@@ -33,7 +34,6 @@ import View.Debug.MoveCommands exposing (..)
 import View.MoveHistory exposing (..)
 import View.PawnPromotion as PP
 import View.Game exposing (..)
-import Chess.AlgebraicNotation exposing (parseAN)
 
 handlers : List (Handler Model Msg)
 handlers =
@@ -65,7 +65,6 @@ type alias Model =
     -- , navKey : Nav.Key
     , route : Maybe Route
     -- , player : Maybe String
-    , opponent : Maybe String
     , ws : WebSocket
     }
   )
@@ -97,7 +96,6 @@ init _ url _ =
         , maybeSelected = Nothing
         , choosingPromotion = Nothing
         , route = parse routeParser url
-        , opponent = Nothing
         , ws = ws
         }
   in M.unwrap
@@ -157,7 +155,7 @@ update msg model = case msg of
       Ok res -> res
   ChangeInput i -> { model | input = i } |> withNoCmd
   MovePiece m   ->
-    (case model.gameState of
+    case model.gameState of
       GameInProgress s -> 
         play [ m ] s.game
         |> R.unwrap
@@ -167,10 +165,19 @@ update msg model = case msg of
             | gameState = GameInProgress
               { s | game = g }
             }
-          )
-      _ -> model
-    )
-    |> withNoCmd
+          ) |>
+            (toAN m s.game
+            |> Result.map
+              (PieceMoveMessage
+              >> outgoingEncode
+              >> Json.Encode.encode 0
+              >> WS.makeSend wsKey
+              >> send model
+              )
+            |> R.unwrap withNoCmd
+              withCmd
+            )
+      _ -> model |> withNoCmd
   BoardAction (SelectTile v) ->
     (case model.gameState of
       GameInProgress state ->
@@ -305,6 +312,7 @@ mainView model =
 
 send : Model -> WS.Message -> Cmd Msg
 send m = WS.send (getCmdPort WS.moduleName m)
+-- send = WS.send << getCmdPort WS.moduleName
 
 socketHandler : Response -> State -> Model -> (Model, Cmd Msg)
 socketHandler response state model =
@@ -316,7 +324,7 @@ socketHandler response state model =
         }
   in case response of
     WS.MessageReceivedResponse { key, message } ->
-      JD.decodeString wsMessageDecoder message
+      JD.decodeString incomingDecoder message
       |> R.unwrap 
         model
         (\r ->
@@ -324,8 +332,8 @@ socketHandler response state model =
           |> appendLog ("Received " ++ Debug.toString r)
           |> asWsIn model
           |> (\m -> case r of
-            WsString s -> m
-            WsJoinedAsWhite s ->
+            IncomingString s -> m
+            IncomingJoinedAsWhite s ->
               case m.gameState of
                 GameInProgress _ -> m
                 _ ->
@@ -335,7 +343,7 @@ socketHandler response state model =
                     , white = s.player
                     }
                   }
-            WsGameStart s ->
+            IncomingGameStart s ->
               { m
               | gameState = GameInProgress
                 { player = case m.gameState of
@@ -351,9 +359,9 @@ socketHandler response state model =
                   }
                 }
               }
-            WsPlayerJoined pl -> m
-            WsPlayerLeft pl -> m
-            WsANPieceMove s ->
+            IncomingPlayerJoined pl -> m
+            IncomingPlayerLeft pl -> m
+            IncomingANPieceMove s ->
               case m.gameState of
                 GameInProgress x ->
                   let pl = gameTurn x.game
