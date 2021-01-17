@@ -170,7 +170,7 @@ update msg model = case msg of
             |> Result.map
               (PieceMoveMessage
               >> outgoingEncode
-              >> Json.Encode.encode 0
+              -- >> Json.Encode.encode 0
               >> WS.makeSend wsKey
               >> send model
               )
@@ -244,7 +244,10 @@ mainView model =
         GameIdling -> loadingView
         GameOnePlayer  s -> waitingView s.player s.white
         GameInProgress s ->
-          boardView s.player BoardAction
+          boardView
+            s.player
+            (s.player == gameTurn s.game)
+            BoardAction
             { board = s.game.board
             , choosingPromotion = model.choosingPromotion
             , maybeSelected = model.maybeSelected
@@ -333,24 +336,35 @@ socketHandler response state model =
           |> asWsIn model
           |> (\m -> case r of
             IncomingString s -> m
-            IncomingJoinedAsWhite s ->
+            IncomingPlayerJoin s ->
               case m.gameState of
                 GameInProgress _ -> m
                 _ ->
                   { m
                   | gameState = GameOnePlayer
+                    -- { player = s.player.kind
                     { player = White
-                    , white = s.player
+                    , white =
+                      { id = s.player.id
+                      , name = s.player.name
+                      }
                     }
                   }
             IncomingGameStart s ->
               { m
               | gameState = GameInProgress
+                -- REVIEW
                 { player = case m.gameState of
-                    GameOnePlayer _ -> Black
-                    _ -> White
-                , white = s.white
-                , black = s.black
+                    GameOnePlayer _ -> White
+                    _               -> Black
+                , white =
+                  { id = s.white.id
+                  , name = s.white.name
+                  }
+                , black =
+                  { id = s.black.id
+                  , name = s.black.name
+                  }
                 , game = 
                   { board = composeBoard initBoard standardComposition
                   , moves = []

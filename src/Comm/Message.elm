@@ -1,54 +1,69 @@
 module Comm.Message exposing (..)
 
+import Chess.Base exposing (Player(..))
 import Json.Decode exposing (Decoder, field, string)
 import Json.Decode as JD
 import Json.Encode
 
-type alias Player =
+type alias GamePlayer =
   { id : String
   , name : String
+  -- , kind : Player
   }
 
 playerDecoder : Decoder Player
-playerDecoder =
+playerDecoder = JD.andThen
+  (\s -> case s of
+    "White" -> JD.succeed White
+    "Black" -> JD.succeed Black
+    _ -> JD.fail "No valid Player Kind"
+  ) JD.string
+
+gamePlayerDecoder : Decoder GamePlayer
+gamePlayerDecoder =
   JD.map2
-    (\x y -> { id = x, name = y })
+    (\x y ->
+      { id = x
+      , name = y
+      -- , kind = z
+      }
+    )
     (JD.field "id" JD.string)
     (JD.field "name" JD.string)
+    -- (JD.field "kind" playerDecoder)
 
 type IncomingMessage
   = IncomingString String
-  | IncomingJoinedAsWhite
+  | IncomingPlayerJoin
     { channelId : String
-    , player : Player
+    , player : GamePlayer
     }
   | IncomingGameStart
     { channelId : String
-    , white : Player
-    , black : Player
+    , white : GamePlayer
+    , black : GamePlayer
     }
-  | IncomingPlayerJoined Player
-  | IncomingPlayerLeft Player
+  | IncomingPlayerJoined GamePlayer
+  | IncomingPlayerLeft GamePlayer
   | IncomingANPieceMove String
 
-
-wsStringDecoder : Decoder IncomingMessage
-wsStringDecoder =
+inWsStringDecoder : Decoder IncomingMessage
+inWsStringDecoder =
   JD.map IncomingString JD.string
 
-joinedAsWhiteDecoder : Decoder IncomingMessage
-joinedAsWhiteDecoder =
+inGamePlayerJoinDecoder : Decoder IncomingMessage
+inGamePlayerJoinDecoder =
   JD.map2
-    (\x y -> IncomingJoinedAsWhite
+    (\x y -> IncomingPlayerJoin
       { channelId = x
       , player = y
       }
     )
     (JD.field "channel_id" JD.string)
-    (JD.field "player" playerDecoder)
+    (JD.field "player" gamePlayerDecoder)
 
-gameStartDecoder : Decoder IncomingMessage
-gameStartDecoder =
+inGameStartDecoder : Decoder IncomingMessage
+inGameStartDecoder =
   JD.map3
     (\x y z -> IncomingGameStart
       { channelId = x
@@ -57,19 +72,15 @@ gameStartDecoder =
       }
     )
     (JD.field "channel_id" JD.string)
-    (JD.field "white" playerDecoder)
-    (JD.field "black" playerDecoder)
+    (JD.field "white" gamePlayerDecoder)
+    (JD.field "black" gamePlayerDecoder)
 
-playerJoinedDecoder : Decoder IncomingMessage
-playerJoinedDecoder =
-  JD.map IncomingPlayerJoined playerDecoder
+inGamePlayerLeftDecoder : Decoder IncomingMessage
+inGamePlayerLeftDecoder =
+  JD.map IncomingPlayerLeft gamePlayerDecoder
 
-playerLeftDecoder : Decoder IncomingMessage
-playerLeftDecoder =
-  JD.map IncomingPlayerLeft playerDecoder
-
-anPieceMoveDecoder : Decoder IncomingMessage
-anPieceMoveDecoder =
+inANPieceMoveDecoder : Decoder IncomingMessage
+inANPieceMoveDecoder =
   JD.map IncomingANPieceMove JD.string
 
 incomingDecoder : Decoder IncomingMessage
@@ -77,12 +88,11 @@ incomingDecoder
   = JD.field "stage" JD.string
     |> JD.andThen
       (\s ->  JD.field "payload" <| case s of
-        "WsString" -> wsStringDecoder
-        "JoinedAsWhite" -> joinedAsWhiteDecoder
-        "GameStart" -> gameStartDecoder
-        "PlayerJoined" -> playerJoinedDecoder
-        "PlayerLeft" -> playerLeftDecoder
-        "ANPieceMove" -> anPieceMoveDecoder
+        "WsString"       -> inWsStringDecoder
+        "GamePlayerJoin" -> inGamePlayerJoinDecoder
+        "GameStart"      -> inGameStartDecoder
+        "GamePlayerLeft" -> inGamePlayerLeftDecoder
+        "ANPieceMove"    -> inANPieceMoveDecoder
         _ -> JD.fail ("Invalid WsMessage stage: " ++ s)
       )
 
@@ -91,16 +101,20 @@ type OutgoingMessage
   = DisconnectRequest
   | PieceMoveMessage String
 
-outgoingEncode : OutgoingMessage ->  Json.Encode.Value
-outgoingEncode m =
-  case m of
-    DisconnectRequest  ->
-      Json.Encode.object [ ( "stage", Json.Encode.string "DisconnectRequest" ) ]
-    PieceMoveMessage s ->
-      Json.Encode.object
-        [ ( "stage", Json.Encode.string "PieceMoveMessage" )
-        , ( "payload"
-          , Json.Encode.object
-            [ ( "move", Json.Encode.string  s ) ]
-          )
-        ]
+outgoingEncode : OutgoingMessage -> String
+outgoingEncode m = case m of
+  DisconnectRequest  -> "_______"
+  PieceMoveMessage s -> "w" ++ s
+
+-- outgoingEncode : OutgoingMessage -> Json.Encode.Value
+-- outgoingEncode m = case m of
+--   DisconnectRequest  ->
+--     Json.Encode.object [ ( "stage", Json.Encode.string "DisconnectRequest" ) ]
+--   PieceMoveMessage s ->
+--     Json.Encode.object
+--       [ ( "stage", Json.Encode.string "PieceMoveMessage" )
+--       , ( "payload"
+--         , Json.Encode.object
+--           [ ( "move", Json.Encode.string s ) ]
+--         )
+--       ]

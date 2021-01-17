@@ -17,8 +17,8 @@ type TileInteraction
   | TileChecked AvailableMove
   | TileCleared
 
-tileView : (V2 -> m) -> Board -> (V2, Maybe Piece) -> TileInteraction -> Html m
-tileView select b t i =
+tileView : (V2 -> m) -> Bool -> Board -> (V2, Maybe Piece) -> TileInteraction -> Html m
+tileView select enabled b t i =
   let (v, mp) = t
       (f, r)  = v
   in div
@@ -27,7 +27,7 @@ tileView select b t i =
       <| if (modBy 2 (f + r) == 0) then darkSpaceColor else lightSpaceColor
     , style "width"  (intToPx tileSize)
     , style "height" (intToPx tileSize)
-    , onClick <| select v
+    , if enabled then onClick <| select v else emptyAttribute
     ]
     [ div
       (List.concat

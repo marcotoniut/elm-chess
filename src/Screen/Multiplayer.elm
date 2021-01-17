@@ -83,7 +83,9 @@ selectTile v m =
               }
 
 gameView : Player -> (GameAction -> a) -> HasGame (GameInputs b) -> Html a
-gameView pl act m = boardView pl
+gameView pl act m = boardView
+  pl
+  (pl == gameTurn m.game)
   (BoardAction >> act)
   { board = m.game.board
   , choosingPromotion = m.choosingPromotion

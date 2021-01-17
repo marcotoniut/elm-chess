@@ -19,8 +19,8 @@ type BoardAction
 -- shroudView : (p -> Bool) -> (p -> [] -> [ Html a ]) -> Html a
 -- shroudView predicate view =
 
-boardView : Player -> (BoardAction -> a) -> HasBoard (GameInputs b) -> Html a
-boardView pl act m =
+boardView : Player -> Bool -> (BoardAction -> a) -> HasBoard (GameInputs b) -> Html a
+boardView facingPl inTurn act m =
   let cp = M.isJust m.choosingPromotion
   in m.board
   |> Matrix.toList
@@ -45,14 +45,15 @@ boardView pl act m =
                   Nothing     -> TileCleared
                   Just (_, a) -> TileChecked a
               )
-            |> tileView (SelectTile >> act) m.board (v, mp)
+            |> tileView (SelectTile >> act) inTurn m.board (v, mp)
           )
           xs
         , ranksEl
         ]
       )
     )
-    |> player List.reverse identity pl
+    -- |> player identity List.reverse facingPl
+    |> player List.reverse identity facingPl
     |> List.append
       ( if cp
         then
