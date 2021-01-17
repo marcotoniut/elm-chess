@@ -69,8 +69,11 @@ type alias Model =
     }
   )
 
+wsUrlAddress : String
+wsUrlAddress = "ws://localhost:8080/channel"
+
 consWsUrl : String -> String -> String
-consWsUrl channel name = "ws://localhost:8080/channel/" ++ channel ++ "?name=" ++ name
+consWsUrl channel name = wsUrlAddress ++ "/" ++ channel ++ "?name=" ++ name
 -- wsUrl _ _ = "wss://echo.websocket.org"
 
 wsKey : String
@@ -174,21 +177,20 @@ update msg model = case msg of
               >> WS.makeSend wsKey
               >> send model
               )
-            |> R.unwrap withNoCmd
-              withCmd
+            |> R.unwrap withNoCmd withCmd
             )
       _ -> model |> withNoCmd
   BoardAction (SelectTile v) ->
-    (case model.gameState of
+    case model.gameState of
       GameInProgress state ->
         selectTile
           v
           { game = state.game
-          , player = White
+          , player = state.player
           , choosingPromotion = model.choosingPromotion
           , maybeSelected = model.maybeSelected
           }
-        |> (\nm ->
+        |> (\(mpm, nm) ->
           { model
           | gameState = GameInProgress
             { state
@@ -196,11 +198,25 @@ update msg model = case msg of
             }
           , choosingPromotion = nm.choosingPromotion
           , maybeSelected = nm.maybeSelected
-          })
-      _ -> model
-    ) |> withNoCmd
+          }
+          |> M.unwrap
+            withNoCmd
+            (\pm ->
+              toAN pm state.game
+              |> Result.map
+                (PieceMoveMessage
+                >> outgoingEncode
+                -- >> Json.Encode.encode 0
+                >> WS.makeSend wsKey
+                >> send model
+                )
+              |> R.unwrap withNoCmd withCmd
+            )
+            mpm
+          )
+      _ -> withNoCmd model
   ChoosePromotion pr -> 
-    (case model.gameState of
+    case model.gameState of
       GameInProgress state ->
         choosePromotion
           pr
@@ -208,7 +224,7 @@ update msg model = case msg of
           , choosingPromotion = model.choosingPromotion
           , maybeSelected = model.maybeSelected
           }
-        |> (\nm ->
+        |> (\(mpm, nm) ->
             { model
             | gameState = GameInProgress
               { state
@@ -216,10 +232,23 @@ update msg model = case msg of
               }
             , choosingPromotion = nm.choosingPromotion
             , maybeSelected = nm.maybeSelected
-            })
-      _ -> model
-    )
-    |> withNoCmd
+            }
+            |> M.unwrap
+              withNoCmd
+              (\pm ->
+                toAN pm state.game
+                |> Result.map
+                  (PieceMoveMessage
+                  >> outgoingEncode
+                  -- >> Json.Encode.encode 0
+                  >> WS.makeSend wsKey
+                  >> send model
+                  )
+                |> R.unwrap withNoCmd withCmd
+              )
+              mpm
+          )
+      _ -> model |> withNoCmd
 
 view : Model -> Browser.Document Msg
 view model =
@@ -336,7 +365,7 @@ socketHandler response state model =
           |> asWsIn model
           |> (\m -> case r of
             IncomingString s -> m
-            IncomingPlayerJoin s ->
+            IncomingGamePlayerJoin s ->
               case m.gameState of
                 GameInProgress _ -> m
                 _ ->
@@ -373,9 +402,8 @@ socketHandler response state model =
                   }
                 }
               }
-            IncomingPlayerJoined pl -> m
-            IncomingPlayerLeft pl -> m
-            IncomingANPieceMove s ->
+            IncomingGamePlayerLeft pl -> m
+            IncomingGameANPieceMove s ->
               case m.gameState of
                 GameInProgress x ->
                   let pl = gameTurn x.game

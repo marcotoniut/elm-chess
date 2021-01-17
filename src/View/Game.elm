@@ -12,19 +12,19 @@ resetInputs a =
   , maybeSelected = Nothing
   }
 
-choosePromotion : PawnPromotion ->  HasGame (GameInputs a) ->  HasGame (GameInputs a)
+choosePromotion : PawnPromotion ->  HasGame (GameInputs a) -> (Maybe PieceMove, HasGame (GameInputs a))
 choosePromotion pr m =
   case m.choosingPromotion of
-    Nothing -> m
+    Nothing -> (Nothing, m)
     Just cp ->
       case m.maybeSelected of
-        Nothing -> m
+        Nothing -> (Nothing, m)
         Just ((f, _), ms) ->
-          m.game
-          |> (case cp of
-            ChoosingPromotionAdvance   ->
-              tryMove (PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance f) 
-            ChoosingPromotionCapture d ->
-              tryMove (PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d)
-            )
-          |> R.unwrap m (\g -> { m | game = g } |> resetInputs)
+          let pm = case cp of
+                ChoosingPromotionAdvance   ->
+                  (PawnPieceMove <| PawnPromotion pr <| PawnPromotionAdvance f)
+                ChoosingPromotionCapture d ->
+                  (PawnPieceMove <| PawnPromotion pr <| PawnPromotionCapture f d)
+          in m.game
+          |> tryMove pm
+          |> R.unwrap m (\g -> { m | game = g }) |> resetInputs |> Tuple.pair (Just pm)

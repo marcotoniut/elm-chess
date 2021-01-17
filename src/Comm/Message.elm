@@ -34,7 +34,7 @@ gamePlayerDecoder =
 
 type IncomingMessage
   = IncomingString String
-  | IncomingPlayerJoin
+  | IncomingGamePlayerJoin
     { channelId : String
     , player : GamePlayer
     }
@@ -43,18 +43,18 @@ type IncomingMessage
     , white : GamePlayer
     , black : GamePlayer
     }
-  | IncomingPlayerJoined GamePlayer
-  | IncomingPlayerLeft GamePlayer
-  | IncomingANPieceMove String
+  -- | IncomingPlayerJoined GamePlayer
+  | IncomingGamePlayerLeft GamePlayer
+  | IncomingGameANPieceMove String
 
-inWsStringDecoder : Decoder IncomingMessage
-inWsStringDecoder =
+inStringDecoder : Decoder IncomingMessage
+inStringDecoder =
   JD.map IncomingString JD.string
 
 inGamePlayerJoinDecoder : Decoder IncomingMessage
 inGamePlayerJoinDecoder =
   JD.map2
-    (\x y -> IncomingPlayerJoin
+    (\x y -> IncomingGamePlayerJoin
       { channelId = x
       , player = y
       }
@@ -77,24 +77,24 @@ inGameStartDecoder =
 
 inGamePlayerLeftDecoder : Decoder IncomingMessage
 inGamePlayerLeftDecoder =
-  JD.map IncomingPlayerLeft gamePlayerDecoder
+  JD.map IncomingGamePlayerLeft gamePlayerDecoder
 
-inANPieceMoveDecoder : Decoder IncomingMessage
-inANPieceMoveDecoder =
-  JD.map IncomingANPieceMove JD.string
+inGameANPieceMoveDecoder : Decoder IncomingMessage
+inGameANPieceMoveDecoder =
+  JD.map IncomingGameANPieceMove JD.string
 
 incomingDecoder : Decoder IncomingMessage
 incomingDecoder
   = JD.field "stage" JD.string
-    |> JD.andThen
-      (\s ->  JD.field "payload" <| case s of
-        "WsString"       -> inWsStringDecoder
-        "GamePlayerJoin" -> inGamePlayerJoinDecoder
-        "GameStart"      -> inGameStartDecoder
-        "GamePlayerLeft" -> inGamePlayerLeftDecoder
-        "ANPieceMove"    -> inANPieceMoveDecoder
-        _ -> JD.fail ("Invalid WsMessage stage: " ++ s)
-      )
+  |> JD.andThen
+    (\s ->  JD.field "payload" <| case s of
+      "WsString"        -> inStringDecoder
+      "GamePlayerJoin"  -> inGamePlayerJoinDecoder
+      "GameStart"       -> inGameStartDecoder
+      "GamePlayerLeft"  -> inGamePlayerLeftDecoder
+      "GameANPieceMove" -> inGameANPieceMoveDecoder
+      _ -> JD.fail ("Invalid WsMessage stage: " ++ s)
+    )
 
 -- TODO
 type OutgoingMessage
