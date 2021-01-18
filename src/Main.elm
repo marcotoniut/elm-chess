@@ -190,14 +190,10 @@ update msg model = case msg of
           , choosingPromotion = model.choosingPromotion
           , maybeSelected = model.maybeSelected
           }
-        |> (\(mpm, nm) ->
+        |> (\(mpm, x) ->
           { model
-          | gameState = GameInProgress
-            { state
-            | game = nm.game
-            }
-          , choosingPromotion = nm.choosingPromotion
-          , maybeSelected = nm.maybeSelected
+          | choosingPromotion = x.choosingPromotion
+          , maybeSelected = x.maybeSelected
           }
           |> M.unwrap
             withNoCmd
@@ -224,14 +220,10 @@ update msg model = case msg of
           , choosingPromotion = model.choosingPromotion
           , maybeSelected = model.maybeSelected
           }
-        |> (\(mpm, nm) ->
+        |> (\(mpm, x) ->
             { model
-            | gameState = GameInProgress
-              { state
-              | game = nm.game
-              }
-            , choosingPromotion = nm.choosingPromotion
-            , maybeSelected = nm.maybeSelected
+            | choosingPromotion = x.choosingPromotion
+            , maybeSelected = x.maybeSelected
             }
             |> M.unwrap
               withNoCmd
@@ -407,23 +399,20 @@ socketHandler response state model =
               case m.gameState of
                 GameInProgress x ->
                   let pl = gameTurn x.game
-                  in if pl == opponent x.player
-                  then
-                    parseAN pl x.game.board s
+                  in parseAN pl x.game.board s
                     |> R.unwrap
-                      m
+                       m
                       (\pm ->
                         play [ pm ] x.game
                         |> R.unwrap
                           m
-                          (\g ->
+                          (\ng ->
                             { m
                             | gameState = GameInProgress
-                              { x | game = g }
+                              { x | game = ng }
                             }
                           )
                       )
-                  else m
                 _ -> m
           )
         )

@@ -104,7 +104,7 @@ type OutgoingMessage
 outgoingEncode : OutgoingMessage -> String
 outgoingEncode m = case m of
   DisconnectRequest  -> "_______"
-  PieceMoveMessage s -> "w" ++ s
+  PieceMoveMessage s -> "w " ++ s
 
 -- outgoingEncode : OutgoingMessage -> Json.Encode.Value
 -- outgoingEncode m = case m of
